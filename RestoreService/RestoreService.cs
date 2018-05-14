@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Fabric;
 using System.Linq;
@@ -42,7 +43,7 @@ namespace RestoreService
             //       or remove this RunAsync override if it's not needed in your service.
 
             var myDictionary = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, long>>("myDictionary");
-
+            /*
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -60,9 +61,26 @@ namespace RestoreService
                     // discarded, and nothing is saved to the secondary replicas.
                     await tx.CommitAsync();
                 }
-
                 await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+            }*/
+            GetApplicationsDeployedInCluster("localhost:19000");
+        }
+
+        public async  void GetApplicationsDeployedInCluster(String clusterConnectionString)
+        {
+            FabricClient fabricClient = new FabricClient(clusterConnectionString);
+            FabricClient.QueryClient queryClient = fabricClient.QueryManager;
+            System.Fabric.Query.ApplicationList appsList = await queryClient.GetApplicationListAsync();
+            foreach(System.Fabric.Query.Application application in appsList)
+            {
+                if (application != null)
+                {
+                    ServiceEventSource.Current.ServiceMessage(this.Context, "Application is "+ application.ApplicationName);
+                }
+                else
+                    Console.WriteLine("No applications");
             }
+            Console.ReadKey();
         }
     }
 }
