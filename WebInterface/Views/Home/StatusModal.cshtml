@@ -1,0 +1,31 @@
+﻿<div class="container-fluid">
+    <div class="modal-header">
+        <div class="col-xs-offset-0">
+            <h2>{{configuredApp}}</h2>
+        </div>
+    </div>
+    <table class="table table-striped" style="width:100%;">
+        <thead>
+            <tr>
+                <th>Service</th>
+                <th>Primary PartitionId</th>
+                <th>Secondary PartitionId</th>
+                <th>Latest BackupId Restored</th>
+                <th>Upto Date with Primary Partition till</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr ng-repeat="partitionStatus in partitionsStatus">
+                <td>{{partitionStatus.serviceName}}</td>
+                <td>{{partitionStatus.partitionId}}</td>
+                <td>{{partitionStatus.mappedPartitionId}}</td>
+                <td>{{partitionStatus.backupId}}</td>
+                <td>{{partitionStatus.lastBackupRestored}}</td>
+            </tr>
+        </tbody>
+    </table>
+    <br /> <br />
+    <div class="modal-footer">
+        <button class="btn btn-primary" type="button" ng-click="Ok()">Ok</button>
+    </div>
+</div>

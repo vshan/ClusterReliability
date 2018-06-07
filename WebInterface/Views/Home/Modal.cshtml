@@ -1,0 +1,27 @@
+﻿<div ng-controller="CBAController">
+    <div class="container-fluid">
+        <div class="modal-header">
+            <div class="col-xs-offset-0">
+                <h2>Configure the application for Backup</h2>
+            </div>
+        </div>
+        <div class="modal-body">
+            <div class="row">
+                <div class="col-xs-8 col-xs-offset-2">
+                    <form class="col-xs-12 center-block">
+                        <div class="col-xs-offset-0 form-group">
+                            <input id="txtAdd" type="text" class="form-control" placeholder="Secondary Cluster Connection String" value="localhost" ng-model="sc" />
+                        </div>
+                        <div class="col-xs-offset-0 form-group">
+                            <input id="txtAdd" type="text" class="form-control" placeholder="HttpPort" value="19000" ng-model="hp" />
+                        </div>
+                    </form>
+                    <div class="modal-footer">
+                        <button class="btn btn-primary" type="button" ng-click="configure()">Configure</button>
+                        <button class="btn btn-warning" type="button" ng-click="cancel()">Cancel</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>

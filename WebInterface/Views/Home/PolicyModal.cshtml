@@ -1,0 +1,39 @@
+﻿<div class="container-fluid">
+    <div class="modal-header">
+        <div class="col-xs-offset-0">
+            <h2>Policy Storage account Details</h2>
+        </div>
+    </div>
+    <div class="modal-body">
+        <div class="row">
+            <form class="col-xs-12 center-block" ng-submit="submitstoragedetails()">
+                <div class="col-xs-8 col-xs-offset-2 text-center">
+                    Provide Backup storage details for this policy
+                </div>
+                <div class="col-xs-offset-0 form-group">
+                    <select id="addOption" class="form-control" ng-model="policy.StorageKind">
+                        <option disabled selected>--Choose storage kind--</option>
+                        <option>AzureBlobStore</option>
+                        <option>FileShare</option>
+                    </select>
+                </div>
+                <div class="col-xs-offset-0 form-group">
+                    <input type="text" class="form-control" placeholder="path" name="Name" ng-model="policy.Path" />
+                </div>
+                <div class="col-xs-offset-0 form-group">
+                    <input type="text" class="form-control" placeholder="connectionString" ng-model="policy.ConnectionString" />
+                </div>
+                <div class="col-xs-offset-0 form-group">
+                    <input type="text" class="form-control" placeholder="containerName" ng-model="policy.ContainerName" />
+                </div>
+                <div class="col-xs-offset-0 form-group">
+                    <input type="text" class="form-control" placeholder="backupLocation" ng-model="policy.BackupLocation" />
+                </div>
+            </form>
+            <div class="modal-footer">
+                <button class="btn btn-primary" type="button" ng-click="submitstoragedetails()">Submit</button>
+                <button class="btn btn-warning" type="button" ng-click="cancel()">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>

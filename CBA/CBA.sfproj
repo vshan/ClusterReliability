@@ -29,7 +29,9 @@
     <None Include="Scripts\Deploy-FabricApplication.ps1" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\PolicyStorageService\PolicyStorageService.csproj" />
     <ProjectReference Include="..\RestoreService\RestoreService.csproj" />
+    <ProjectReference Include="..\WebInterface\WebInterface.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="packages.config" />

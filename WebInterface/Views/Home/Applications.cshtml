@@ -1,0 +1,47 @@
+﻿
+@{
+    ViewData["Title"] = "Applications";
+}
+<div ng-controller="CBAController">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-xs-8 col-xs-offset-2 text-center">
+                <h2>Cluster Backup Application</h2>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-xs-8 col-xs-offset-2">
+                <form class="col-xs-12 center-block">
+                    <div class="col-xs-6 form-group">
+                        <input id="txtAdd" type="text" class="form-control" placeholder="Primary Cluster Connection String" value="localhost" ng-model="pc" />
+                    </div>
+                    <div class="col-xs-6 form-group">
+                        <input id="txtAdd" type="text" class="form-control" placeholder="tcpPort" value="19000" ng-model="tp" />
+                    </div>
+                </form>
+                <div class="col-xs-offset-0 text-center">
+                    <button id="btnAdd" class="btn btn-primary" ng-click="getapps(pc + ':' + tp)">
+                        GetApplications
+                    </button>
+                </div>
+            </div>
+        </div>
+        <hr />
+        <div class="row">
+            <div class="col-xs-8 col-xs-offset-2 text-center">
+                <h3 ng-show="apps != undefined">Applications</h3>
+                <div class="row top-buffer" ng-repeat="app in apps.data">
+                    <div class="col-xs-offset-0 text-center">
+                        <button class="btn btn-success text-center btn-block" ng-click="openModal(app)">
+                            <span class="center-block">
+                                {{app}}
+                            </span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+</div>
+

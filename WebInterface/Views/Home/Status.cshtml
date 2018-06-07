@@ -1,0 +1,24 @@
+﻿<div ng-controller="CBAController">
+    <div class="container-fluid">
+        <div class="row">
+            <div class="col-xs-8 col-xs-offset-2 text-center">
+                <h2>Cluster Backup Application</h2>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-xs-8 col-xs-offset-2 text-center">
+                <h3>Applications configured for Backup</h3>
+            </div>
+            <div class="row top-buffer" ng-repeat="appConfigured in appsConfigured">
+                <div class="col-xs-offset-0 text-center">
+                    <button class="btn btn-success text-center btn-default" ng-click="openStatusModal(appConfigured)">
+                        <span class="center-block">
+                            {{appConfigured}}
+                        </span>
+                    </button>
+                </div>
+            </div>
+        </div>
+        <hr />
+    </div>
+</div>
