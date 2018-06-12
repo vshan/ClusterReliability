@@ -17,13 +17,10 @@ namespace RestoreService
     public class PartitionWrapper
     {
         [DataMember]
-        public string primaryCluster;
+        public ClusterDetails primaryCluster;
 
         [DataMember]
-        public string httpEndpoint;
-
-        [DataMember]
-        public string secondaryCluster;
+        public ClusterDetails secondaryCluster;
 
         [DataMember]
         public Uri applicationName;
@@ -54,7 +51,7 @@ namespace RestoreService
 
         public ServicePartitionStatus PartitionStatus { get;  set; }
 
-        public PartitionWrapper(Partition partition, Guid primaryPartitionId, Uri applicationName, Uri serviceName, string httpEndpoint, string primaryCluster, string secondaryCluster)
+        public PartitionWrapper(Partition partition, Guid primaryPartitionId, Uri applicationName, Uri serviceName, ClusterDetails primaryCluster, ClusterDetails secondaryCluster)
         {
             this.partitionId = partition.PartitionInformation.Id;
             this.primaryPartitionId = primaryPartitionId;
@@ -64,7 +61,6 @@ namespace RestoreService
             this.PartitionStatus = partition.PartitionStatus;
             this.applicationName = applicationName;
             this.serviceName = serviceName;
-            this.httpEndpoint = httpEndpoint;
             this.primaryCluster = primaryCluster;
             this.secondaryCluster = secondaryCluster;
         }
@@ -91,13 +87,14 @@ namespace RestoreService
         [DataMember]
         public DateTime backupTime { get; set; }
 
-        public BackupStorage storageDetails;
+        [DataMember]
+        public BackupStorage backupStorage;
 
-        public BackupInfo(string backupId, string backupLocation, BackupStorage storageDetails, DateTime backupTime)
+        public BackupInfo(string backupId, string backupLocation, BackupStorage backupStorage, DateTime backupTime)
         {
             this.backupId = backupId;
             this.backupLocation = backupLocation;
-            this.storageDetails = storageDetails;
+            this.backupStorage = backupStorage;
             this.backupTime = backupTime;
         }
 
@@ -106,6 +103,26 @@ namespace RestoreService
             this.backupId = backupId;
             this.backupLocation = backupLocation;
             this.backupTime = backupTime;
+        }
+    }
+
+    [DataContract]
+    public class ClusterDetails
+    {
+        [DataMember]
+        public string address { get; set; }
+
+        [DataMember]
+        public string httpEndpoint { get; set; }
+
+        [DataMember]
+        public string clientConnectionEndpoint { get; set; }
+
+        public ClusterDetails(string address, string httpEndpoint, string clientConnectionEndpoint)
+        {
+            this.address = address;
+            this.httpEndpoint = httpEndpoint;
+            this.clientConnectionEndpoint = clientConnectionEndpoint;
         }
     }
 }

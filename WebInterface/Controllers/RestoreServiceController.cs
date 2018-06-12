@@ -16,6 +16,7 @@ using System.Web.Script.Serialization;
 using PolicyStorageService;
 using System.Fabric.Query;
 using WebInterface.Models;
+using System.Xml.Linq;
 
 namespace WebInterface.Controllers
 {
@@ -31,14 +32,10 @@ namespace WebInterface.Controllers
         }
 
         // GET: api/Restore/5
-        [HttpGet("{cs}", Name = "Get")]
-        public async Task<IActionResult> Get(String cs)
+        [HttpGet("{pc}/{hp}", Name = "Get")]
+        public async Task<IActionResult> Get(String pc, String hp)
         {
-            if (cs.Contains("http://"))
-                cs = cs.Replace("http://", "");
-            if (cs.Contains("https://"))
-                cs = cs.Replace("https://", "");
-            FabricClient fabricClient = new FabricClient(cs);
+            FabricClient fabricClient = new FabricClient(pc + ":" + GetClientConnectionEndpoint(pc + ":" + hp));
             List<String> applicationsList = new List<String>();
             FabricClient.QueryClient queryClient = fabricClient.QueryManager;
             System.Fabric.Query.ApplicationList appsList = await queryClient.GetApplicationListAsync();
@@ -144,9 +141,13 @@ namespace WebInterface.Controllers
         }
 
         [HttpPost]
-        [Route("configure/{primaryCluster}/{secondaryCluster}/{httpEndpoint}/{clientConnectionEndpoint}")]
-        public void Configure([FromBody]JObject content, string primaryCluster,string secondaryCluster, string httpEndpoint, string clientConnectionEndpoint)
+        [Route("configure/{primaryClusterAddress}/{secondaryClusterAddress}/{primaryHttpEndpoint}/{secondaryHttpEndpoint}")]
+        public void Configure([FromBody]JObject content, string primaryClusterAddress,string secondaryClusterAddress, string primaryHttpEndpoint, string secondaryHttpEndpoint)
         {
+            string primaryClientConnectionEndpoint = GetClientConnectionEndpoint(primaryClusterAddress + ":" + primaryHttpEndpoint);
+            string secondaryClientConnectionEndpoint = GetClientConnectionEndpoint(secondaryClusterAddress + ":" + secondaryHttpEndpoint);
+            ClusterDetails primaryCluster = new ClusterDetails(primaryClusterAddress, primaryHttpEndpoint, primaryClientConnectionEndpoint);
+            ClusterDetails secondaryCluster = new ClusterDetails(secondaryClusterAddress, secondaryHttpEndpoint, secondaryClientConnectionEndpoint);
             JArray applicationsData = (JArray)content["ApplicationsList"];
             JArray policiesData = (JArray)content["PoliciesList"];
             List<string> applicationsList = JsonConvert.DeserializeObject<List<string>>(applicationsData.ToString());
@@ -161,7 +162,7 @@ namespace WebInterface.Controllers
                 IRestoreService restoreServiceClient = ServiceProxy.Create<IRestoreService>(new Uri("fabric:/CBA/RestoreService"), new ServicePartitionKey(lowKey));
                 try
                 {
-                    restoreServiceClient.Configure(applicationsList, policicesList, primaryCluster, secondaryCluster,httpEndpoint, clientConnectionEndpoint);
+                    restoreServiceClient.Configure(applicationsList, policicesList, primaryCluster, secondaryCluster);
                 }
                 catch (Exception ex)
                 {
@@ -233,6 +234,32 @@ namespace WebInterface.Controllers
             });
             return response;*/
 
+        }
+
+        public string GetClientConnectionEndpoint(string clusterConnectionString)
+        {
+            string URL = "http://" + clusterConnectionString + "/$/GetClusterManifest";
+            string urlParameters = "?api-version=6.2";
+            HttpClient client = new HttpClient();
+            client.BaseAddress = new Uri(URL);
+            client.DefaultRequestHeaders.Accept.Add(
+            new MediaTypeWithQualityHeaderValue("application/json"));
+
+            HttpResponseMessage response = client.GetAsync(urlParameters).Result;
+            if (response.IsSuccessStatusCode)
+            {
+                var content = response.Content.ReadAsAsync<JObject>().Result;
+                JValue objectData = (JValue)content["Manifest"];
+                XElement xel = XElement.Parse(objectData.ToString());
+                XElement xElement = xel.Descendants().First().Descendants().First().Descendants().First().Descendants().First();
+
+                return xElement.Attribute("Port").Value.ToString();
+            }
+            else
+            {
+                Console.WriteLine("{0} ({1})", (int)response.StatusCode, response.ReasonPhrase);
+                return null;
+            }
         }
 
         // PUT: api/Restore/5

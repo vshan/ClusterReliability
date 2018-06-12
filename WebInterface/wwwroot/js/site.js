@@ -108,7 +108,7 @@ app.controller('CBAController', ['$rootScope', '$scope', '$http', '$timeout', '$
         contentData.PoliciesList = $scope.policies;
         contentData.ApplicationsList = $rootScope.selectedApps;
         var content = JSON.stringify(contentData);
-        $http.post('api/RestoreService/configure/' + $rootScope.pc + '/' + $scope.sc + '/' + $rootScope.hp + '/' + $rootScope.tp, content)
+        $http.post('api/RestoreService/configure/' + $rootScope.pc + '/' + $rootScope.sc + '/' + $rootScope.php + '/' + $rootScope.shp, content)
             .then(function (data, status) {
                 console.log("Succesfully configured");
                 window.alert("Applications Successfully configured");
@@ -179,17 +179,19 @@ app.controller('CBAController', ['$rootScope', '$scope', '$http', '$timeout', '$
         }
     };
 
-    $scope.getapps = function (cs) {
+    $scope.getapps = function () {
 //        var cs = $scope.getQueryParameterByName('cs');
         $rootScope.pc = $scope.pc;
         $rootScope.sc = $scope.sc;
-        $rootScope.tp = $scope.tp;
-        $rootScope.hp = $scope.hp;
-        if (cs.includes("http://"))
-            cs = cs.replace("http://", "");
-        if (cs.includes("https://"))
-            cs = cs.replace("https://", "");
-        $http.get('api/RestoreService/' + cs)
+        $rootScope.php = $scope.php;
+        $rootScope.shp = $scope.shp;
+        var address = $scope.pc;
+        if (address.includes("http://"))
+            address = address.replace("http://", "");
+        if (address.includes("https://"))
+            address = address.replace("https://", "");
+        $scope.pc = $rootScope.pc = address;
+        $http.get('api/RestoreService/' + $scope.pc + '/' + $scope.php)
             .then(function (data, status) {
                 $scope.apps = data;
                 $scope.configureModalInstance = $uibModal.open({
@@ -223,7 +225,7 @@ app.controller('CBAController', ['$rootScope', '$scope', '$http', '$timeout', '$
     };
 
     $scope.openPolicyModal = function () {
-        $http.post('api/RestoreService/policies/' + $scope.pc + ':' + $scope.hp, $rootScope.selectedApps)
+        $http.post('api/RestoreService/policies/' + $scope.pc + ':' + $scope.php, $rootScope.selectedApps)
             .then(function (data, status) {
                 $scope.policies = data.data;
                 console.log($scope.policies[0].backupStorage.primaryUsername);
@@ -260,6 +262,7 @@ app.controller('CBAController', ['$rootScope', '$scope', '$http', '$timeout', '$
         */
     };
 
+    /*
     $scope.submit = function () {
         $rootScope.pc = $scope.pc;
         $rootScope.sc = $scope.sc;
@@ -269,6 +272,7 @@ app.controller('CBAController', ['$rootScope', '$scope', '$http', '$timeout', '$
         var path = '/Policies';
         $location.path(path);
     };
+    */
 
 
     $scope.redirect = function () {

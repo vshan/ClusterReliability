@@ -11,7 +11,7 @@ namespace PolicyStorageService
     public class BackupStorage
     {
         [DataMember]
-        public String storageKind;
+        public String StorageKind;
 
         [DataMember]
         public String connectionString;
