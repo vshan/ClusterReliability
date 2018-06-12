@@ -52,7 +52,7 @@ app.controller('CBAController', ['$rootScope', '$scope', '$http', '$timeout', '$
         $http.get('api/RestoreService/status')
             .then(function (data, status) {
                 $rootScope.partitionsStatus = data.data;
-                if ($rootScope.partitionsStatus === undefined) {
+                if ($rootScope.partitionsStatus == undefined) {
                     $rootScope.showConfiguredApps = false;
                     return;
                 }
@@ -60,7 +60,7 @@ app.controller('CBAController', ['$rootScope', '$scope', '$http', '$timeout', '$
                 console.log($rootScope.partitionsStatus[0].applicationName);
                 for (var i in $rootScope.partitionsStatus) {
                     var appName = $rootScope.partitionsStatus[i].applicationName;
-                    if (appsConfigured.indexOf(appName) === -1)
+                    if (appsConfigured.indexOf(appName) == -1)
                         appsConfigured.push(appName);
                 }
                 $rootScope.appsConfigured = appsConfigured;
@@ -108,7 +108,7 @@ app.controller('CBAController', ['$rootScope', '$scope', '$http', '$timeout', '$
         contentData.PoliciesList = $scope.policies;
         contentData.ApplicationsList = $rootScope.selectedApps;
         var content = JSON.stringify(contentData);
-        $http.post('api/RestoreService/configure/' + $rootScope.pc + '/' + $scope.sc + '/' + $rootScope.php + '/' + $rootScope.shp, content)
+        $http.post('api/RestoreService/configure/' + $rootScope.pc + '/' + $scope.sc + '/' + $rootScope.hp + '/' + $rootScope.tp, content)
             .then(function (data, status) {
                 console.log("Succesfully configured");
                 window.alert("Applications Successfully configured");
@@ -157,13 +157,13 @@ app.controller('CBAController', ['$rootScope', '$scope', '$http', '$timeout', '$
             configuredApp = configuredApp.replace('fabric:/', '');
         $http.get('api/RestoreService/disconfigure/' + configuredApp)
             .then(function (data, status) {
-                if (data.data === configuredApp)
+                if (data.data == configuredApp)
                     window.alert("Suuccessfully disconfigured");
                 $scope.cancel('statusModalInstance');
             }, function (data, status) {
                 window.alert("Problem while disconfiguring");
             });
-    };
+    }
 
     $scope.toggleSelection = function (app) {
         var idx = $rootScope.selectedApps.indexOf(app);
@@ -179,23 +179,23 @@ app.controller('CBAController', ['$rootScope', '$scope', '$http', '$timeout', '$
         }
     };
 
-    $scope.getapps = function (pc, php) {
+    $scope.getapps = function (cs) {
 //        var cs = $scope.getQueryParameterByName('cs');
         $rootScope.pc = $scope.pc;
         $rootScope.sc = $scope.sc;
-        $rootScope.shp = $scope.shp;
-        $rootScope.php = $scope.php;
+        $rootScope.tp = $scope.tp;
+        $rootScope.hp = $scope.hp;
         if (cs.includes("http://"))
             cs = cs.replace("http://", "");
         if (cs.includes("https://"))
             cs = cs.replace("https://", "");
-        $http.get('api/RestoreService/' + cs + '/' + php)
+        $http.get('api/RestoreService/' + cs)
             .then(function (data, status) {
                 $scope.apps = data;
                 $scope.configureModalInstance = $uibModal.open({
                     templateUrl: 'ConfigureModal',
                     scope: $scope,
-                    windowClass: 'app-configuremodal-window'
+                    windowClass: 'app--window'
                 });
                 console.log("Done reading");
                 console.log(data);
@@ -263,8 +263,8 @@ app.controller('CBAController', ['$rootScope', '$scope', '$http', '$timeout', '$
     $scope.submit = function () {
         $rootScope.pc = $scope.pc;
         $rootScope.sc = $scope.sc;
-        $rootScope.shp = $scope.shp;
-        $rootScope.php = $scope.php;
+        $rootScope.tp = $scope.tp;
+        $rootScope.hp = $scope.hp;
         console.log('Sc is : ' + $rootScope.sc);
         var path = '/Policies';
         $location.path(path);

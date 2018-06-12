@@ -12,7 +12,7 @@ namespace RestoreService
 {
     public interface IRestoreService :  IService
     {
-        Task Configure(List<String> applications, List<PolicyStorageEntity> policies, ClusterDetails primaryCluster, ClusterDetails secondaryCluster);
+        Task Configure(List<String> applications, List<PolicyStorageEntity> policies, String primaryCluster, String secondaryCluster, String httpEndpoint, String clientConnectionEndpoint);
 
         Task<string> Disconfigure(string applicationName);
 

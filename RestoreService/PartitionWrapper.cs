@@ -17,10 +17,13 @@ namespace RestoreService
     public class PartitionWrapper
     {
         [DataMember]
-        public ClusterDetails primaryCluster;
+        public string primaryCluster;
 
         [DataMember]
-        public ClusterDetails secondaryCluster;
+        public string httpEndpoint;
+
+        [DataMember]
+        public string secondaryCluster;
 
         [DataMember]
         public Uri applicationName;
@@ -51,7 +54,7 @@ namespace RestoreService
 
         public ServicePartitionStatus PartitionStatus { get;  set; }
 
-        public PartitionWrapper(Partition partition, Guid primaryPartitionId, Uri applicationName, Uri serviceName, ClusterDetails primaryCluster, ClusterDetails secondaryCluster)
+        public PartitionWrapper(Partition partition, Guid primaryPartitionId, Uri applicationName, Uri serviceName, string httpEndpoint, string primaryCluster, string secondaryCluster)
         {
             this.partitionId = partition.PartitionInformation.Id;
             this.primaryPartitionId = primaryPartitionId;
@@ -61,6 +64,7 @@ namespace RestoreService
             this.PartitionStatus = partition.PartitionStatus;
             this.applicationName = applicationName;
             this.serviceName = serviceName;
+            this.httpEndpoint = httpEndpoint;
             this.primaryCluster = primaryCluster;
             this.secondaryCluster = secondaryCluster;
         }
@@ -103,27 +107,5 @@ namespace RestoreService
             this.backupLocation = backupLocation;
             this.backupTime = backupTime;
         }
-    }
-
-    [DataContract]
-    public class ClusterDetails
-    {
-        [DataMember]
-        public string address { get; set; }
-
-        [DataMember]
-        public string httpEndpoint { get; set; }
-
-        [DataMember]
-        public string clientConnectionEndpoint { get; set; }
-
-
-        public ClusterDetails(string address, string httpEndpoint, string clientConnectionEndpoint)
-        {
-            this.address = address;
-            this.clientConnectionEndpoint = clientConnectionEndpoint;
-            this.httpEndpoint = httpEndpoint;
-        }
-
     }
 }

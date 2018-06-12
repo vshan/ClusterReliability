@@ -19,14 +19,14 @@
                         <input id="txtAdd" type="text" class="form-control" placeholder="Secondary Cluster" value="localhost" ng-model="sc" />
                     </div>
                     <div class="col-xs-6 form-group">
-                        <input id="txtAdd" type="text" class="form-control" placeholder="PrimaryHttpEndpoint" value="19080" ng-model="php" />
+                        <input id="txtAdd" type="text" class="form-control" placeholder="HttpEndpoint" value="19080" ng-model="hp" />
                     </div>
                     <div class="col-xs-6 form-group">
-                        <input id="txtAdd" type="text" class="form-control" placeholder="SecondaryHttpEndpoint" value="19080" ng-model="shp" />
+                        <input id="txtAdd" type="text" class="form-control" placeholder="ClientConnectionEndpoint" value="19000" ng-model="tp" />
                     </div>
                 </form>
                 <div class="col-xs-offset-0 text-center">
-                    <button id="btnAdd" class="btn btn-primary" ng-click="getapps(pc,php)">
+                    <button id="btnAdd" class="btn btn-primary" ng-click="getapps(pc + ':' + tp)">
                         Submit
                     </button>
                 </div>
