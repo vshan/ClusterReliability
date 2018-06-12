@@ -2,47 +2,34 @@
 var app = angular.module('CBA', ['ngRoute','ui.bootstrap']);
 app.run(function ($rootScope, $location) {
     $rootScope.$on("$locationChangeStart", function (event, next, current) {
-        if ($location.path() !== "/" && $location.path() !== "") {
-            if ($rootScope.pc === undefined) {
-                window.alert("Please enter cluster connection endpoint details");
-                $location.path("/");
-            }
-        }
 
-        if ($location.path() === "/Status" && $rootScope.appsConfigured.length === 0) {
-            window.alert("No applications Configured for backup");
-            $location.path("/Applications");
+        /*
+        if ((($location.path() === "/") || ($location.path() === "")) && $rootScope.appsConfigured.length === 0) {
+            $rootScope.showConfiguredApps = false;
+
         }
+        */
         
     });
-    $rootScope.appsConfigured = [];
+    $rootScope.selectedApps = [];
 });
 
 app.config(function ($routeProvider) {
     $routeProvider
 
         .when('/', {
-            templateUrl: 'HomePage',
-            controller: 'CBAController'
-        })
-
-        .when('/Policies', {
-            templateUrl: 'Policies',
-            controller: 'CBAController'
-        })
-
-        .when('/Applications', {
-            templateUrl: 'Applications',
-            controller: 'CBAController'
-        })
-
-        .when('/Status', {
             templateUrl: 'Status',
+            controller: 'CBAController'
+        })
+
+        .when('/Configure', {
+            templateUrl: 'Applications',
             controller: 'CBAController'
         })
 
         .otherwise({ redirectTo: '/' });
 });
+
 app.controller('CBAController', ['$rootScope', '$scope', '$http', '$timeout', '$location','$uibModal', function ($rootScope, $scope, $http, $timeout, $location, $uibModal) {
 
     $scope.showForm = false;
@@ -56,70 +43,160 @@ app.controller('CBAController', ['$rootScope', '$scope', '$http', '$timeout', '$
         });
     };
 
+    var loadTime = 10000, //Load the data every second
+        errorCount = 0, //Counter for the server errors
+        loadPromise; //Pointer to the promise created by the Angular $timout service
+
+    $scope.refresh = function () {
+        console.log("Hey");
+        $http.get('api/RestoreService/status')
+            .then(function (data, status) {
+                $rootScope.partitionsStatus = data.data;
+                if ($rootScope.partitionsStatus === undefined) {
+                    $rootScope.showConfiguredApps = false;
+                    return;
+                }
+                var appsConfigured = [];
+                console.log($rootScope.partitionsStatus[0].applicationName);
+                for (var i in $rootScope.partitionsStatus) {
+                    var appName = $rootScope.partitionsStatus[i].applicationName;
+                    if (appsConfigured.indexOf(appName) === -1)
+                        appsConfigured.push(appName);
+                }
+                $rootScope.appsConfigured = appsConfigured;
+                if ($rootScope.appsConfigured.length > 0)
+                    $rootScope.showConfiguredApps = true;
+                else 
+                    $rootScope.showConfiguredApps = false;
+                errorCount = 0;
+                nextLoad();
+
+            }, function (data, status) {
+                console.log("Not happening");
+                nextLoad(++errorCount * 2 * loadTime);
+            });
+    };
+
+    var cancelNextLoad = function () {
+        $timeout.cancel(loadPromise);
+    };
+
+    var nextLoad = function (mill) {
+        mill = mill || loadTime;
+
+        //Always make sure the last timeout is cleared before starting a new one
+        cancelNextLoad();
+        loadPromise = $timeout($scope.refresh, mill);
+    };
+
+    //Always clear the timeout when the view is destroyed, otherwise it will keep polling and leak memory
+    $scope.$on('$destroy', function () {
+        cancelNextLoad();
+    });
+
     $scope.configure = function () {
-        if ($rootScope.appsConfigured.indexOf($scope.appToConfigure) !== -1) {
+/*        if ($rootScope.appsConfigured.indexOf($scope.appToConfigure) !== -1) {
             window.alert("Application already configured");
             $scope.modalInstance.dismiss('cancel');
             return;
         }
-        $rootScope.appsConfigured.push($scope.appToConfigure);
-        $http.post('api/RestoreService/configure/' + $scope.appToConfigure + '/' + $rootScope.pc + '/' + $scope.sc + '/' + $rootScope.hp + '/' + $rootScope.tp)
+        */
+        console.log("In Configure : " + $scope.policies[0].backupStorage.storageKind);
+        console.log("In Configure : " + $scope.policies[0].backupStorage.primaryUsername);
+        console.log("In Configure : " + $rootScope.showConfiguredApps);
+        var contentData = {};
+        contentData.PoliciesList = $scope.policies;
+        contentData.ApplicationsList = $rootScope.selectedApps;
+        var content = JSON.stringify(contentData);
+        $http.post('api/RestoreService/configure/' + $rootScope.pc + '/' + $scope.sc + '/' + $rootScope.php + '/' + $rootScope.shp, content)
             .then(function (data, status) {
                 console.log("Succesfully configured");
-                window.alert("Application Successfully configured");
+                window.alert("Applications Successfully configured");
             }, function (data, status) {
-                $scope.apps = undefined;
+                window.alert("Applications not configured. Try again");
+                console.log("Not configured");
             });
-        $rootScope.sc = $scope.sc;
-        console.log("Sc in RootScope :" + $rootScope.sc);
-        $scope.modalInstance.close();
+        $scope.cancel(true);
     };
 
-    $scope.cancel = function () {
-        $scope.modalInstance.dismiss('cancel');
+    $scope.cancel = function (modalInstance) {
+        if (modalInstance === 'configureModalInstance')
+            $scope.configureModalInstance.dismiss();
+        else if (modalInstance === 'policyModalInstance')
+            $scope.policyModalInstance.dismiss();
+        else if (modalInstance === 'statusModalInstance')
+            $scope.statusModalInstance.dismiss();
+        else {
+            $scope.configureModalInstance.dismiss();
+            $scope.policyModalInstance.dismiss();
+        }
     };
 
+    $scope.status = {
+    isFirstOpen: true,
+    isFirstDisabled: false
+    };
 
     $scope.openStatusModal = function (configuredApp) {
-        $http.get('api/RestoreService/status/' + $rootScope.pc + '/' + $scope.hp + '/' + $scope.tp + '/' + configuredApp)
+        $scope.configuredApp = configuredApp;
+        $scope.applicationStatus = [];
+        for (var i in $rootScope.partitionsStatus) {
+            if ($scope.partitionsStatus[i].applicationName.includes(configuredApp)) {
+                $scope.applicationStatus.push($rootScope.partitionsStatus[i]);
+            }
+        }
+        $scope.statusModalInstance = $uibModal.open({
+            templateUrl: 'StatusModal',
+            scope: $scope,
+            windowClass: 'app-modal-window'
+        });
+    };
+
+    $scope.disconfigure = function (configuredApp) {
+        if (configuredApp.includes("fabric:/"))
+            configuredApp = configuredApp.replace('fabric:/', '');
+        $http.get('api/RestoreService/disconfigure/' + configuredApp)
             .then(function (data, status) {
-                $uibModal.open({
-                    templateUrl: 'StatusModal',
-                    controller: function ($scope, $rootScope, $uibModalInstance) {
-                        $scope.configuredApp = configuredApp;
-                        $scope.partitionsStatus = data.data;
-                        $scope.cancel = function () {
-                            $uibModalInstance.dismiss('cancel');
-                        };
-                        $scope.Ok = function () {
-                            $uibModalInstance.dismiss();
-                        };
-                    },
-                    size : 'lg'
-                });
+                if (data.data === configuredApp)
+                    window.alert("Suuccessfully disconfigured");
+                $scope.cancel('statusModalInstance');
             }, function (data, status) {
-                console.log("Not happening");
+                window.alert("Problem while disconfiguring");
             });
     };
 
-    $scope.refresh = function () {
-        $http.get('api/Home?c=' + new Date().getTime())
-            .then(function (data, status) {
-                $scope.votes = data;
-            }, function (data, status) {
-                $scope.votes = undefined;
-            });
+    $scope.toggleSelection = function (app) {
+        var idx = $rootScope.selectedApps.indexOf(app);
+
+        // Is currently selected
+        if (idx > -1) {
+            $rootScope.selectedApps.splice(idx, 1);
+        }
+
+        // Is newly selected
+        else {
+            $rootScope.selectedApps.push(app);
+        }
     };
 
-    $scope.getapps = function (cs) {
+    $scope.getapps = function (pc, php) {
 //        var cs = $scope.getQueryParameterByName('cs');
+        $rootScope.pc = $scope.pc;
+        $rootScope.sc = $scope.sc;
+        $rootScope.shp = $scope.shp;
+        $rootScope.php = $scope.php;
         if (cs.includes("http://"))
             cs = cs.replace("http://", "");
         if (cs.includes("https://"))
             cs = cs.replace("https://", "");
-        $http.get('api/RestoreService/' + cs)
+        $http.get('api/RestoreService/' + cs + '/' + php)
             .then(function (data, status) {
                 $scope.apps = data;
+                $scope.configureModalInstance = $uibModal.open({
+                    templateUrl: 'ConfigureModal',
+                    scope: $scope,
+                    windowClass: 'app-configuremodal-window'
+                });
                 console.log("Done reading");
                 console.log(data);
                 console.log($scope.apps.data[0]);
@@ -145,14 +222,27 @@ app.controller('CBAController', ['$rootScope', '$scope', '$http', '$timeout', '$
             });
     };
 
-    $scope.openPolicyModal = function (policy) {
+    $scope.openPolicyModal = function () {
+        $http.post('api/RestoreService/policies/' + $scope.pc + ':' + $scope.hp, $rootScope.selectedApps)
+            .then(function (data, status) {
+                $scope.policies = data.data;
+                console.log($scope.policies[0].backupStorage.primaryUsername);
+                $scope.policyModalInstance = $uibModal.open({
+                    templateUrl: 'PolicyModal',
+                    scope: $scope
+                });
+            }, function (data, status) {
+                console.log("Sad life");
+                $scope.policies = undefined;
+            });
+        /*
         $uibModal.open({
             templateUrl: 'PolicyModal',
             controller: function ($scope, $rootScope, $uibModalInstance) {
                 $scope.policy = {};
                 $scope.submitstoragedetails = function () {
                     var content = JSON.stringify($scope.policy);
-                    $http.post('api/RestoreService/add/' + policy, content)
+                    $http.post('api/RestoreService/add/' + policy + '/' + $rootScope.pc + ':' + $rootScope.hp, content)
                         .then(function (data, status) {
                             console.log("Submitted");
                             window.alert("Storage Deatils succesfully submitted");
@@ -167,13 +257,15 @@ app.controller('CBAController', ['$rootScope', '$scope', '$http', '$timeout', '$
                 };
             }
         });
+        */
     };
 
     $scope.submit = function () {
         $rootScope.pc = $scope.pc;
-        $rootScope.tp = $scope.tp;
-        $rootScope.hp = $scope.hp;
-        console.log($rootScope.pc);
+        $rootScope.sc = $scope.sc;
+        $rootScope.shp = $scope.shp;
+        $rootScope.php = $scope.php;
+        console.log('Sc is : ' + $rootScope.sc);
         var path = '/Policies';
         $location.path(path);
     };

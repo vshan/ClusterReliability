@@ -17,10 +17,31 @@ namespace RestoreService
     public class PartitionWrapper
     {
         [DataMember]
+        public ClusterDetails primaryCluster;
+
+        [DataMember]
+        public ClusterDetails secondaryCluster;
+
+        [DataMember]
+        public Uri applicationName;
+
+        [DataMember]
+        public Uri serviceName;
+
+        [DataMember]
         public Guid partitionId { get; set; }
 
         [DataMember]
-        public BackupInfo LastBackup { get; set; }
+        public Guid primaryPartitionId { get; set; }
+
+        [DataMember]
+        public BackupInfo LatestBackupAvailable { get; set; }
+
+        [DataMember]
+        public BackupInfo LastBackupRestored { get; set; }
+
+        [DataMember]
+        public BackupInfo CurrentlyUnderRestore { get; set; }
 
         public ServiceKind ServiceKind { get; set; }
 
@@ -30,25 +51,18 @@ namespace RestoreService
 
         public ServicePartitionStatus PartitionStatus { get;  set; }
 
-        public PartitionWrapper(Partition partition)
+        public PartitionWrapper(Partition partition, Guid primaryPartitionId, Uri applicationName, Uri serviceName, ClusterDetails primaryCluster, ClusterDetails secondaryCluster)
         {
             this.partitionId = partition.PartitionInformation.Id;
+            this.primaryPartitionId = primaryPartitionId;
             this.PartitionInformation = partition.PartitionInformation;
             this.ServiceKind = partition.ServiceKind;
             this.HealthState = partition.HealthState;
             this.PartitionStatus = partition.PartitionStatus;
-        }
-
-        public PartitionWrapper(Partition partition, JToken backupItem)
-        {
-            this.partitionId = partition.PartitionInformation.Id;
-            this.PartitionInformation = partition.PartitionInformation;
-            this.ServiceKind = partition.ServiceKind;
-            this.HealthState = partition.HealthState;
-            this.PartitionStatus = partition.PartitionStatus;
-            this.LastBackup.backupId = backupItem["BackupId"].ToString();
-            this.LastBackup.backupLocation = backupItem["BackupLocation"].ToString();
-            this.LastBackup.latestBackupRestored = (DateTime)backupItem["CreationTimeUtc"];
+            this.applicationName = applicationName;
+            this.serviceName = serviceName;
+            this.primaryCluster = primaryCluster;
+            this.secondaryCluster = secondaryCluster;
         }
 
         public PartitionWrapper(PartitionWrapper partitionWrapper)
@@ -71,23 +85,45 @@ namespace RestoreService
         public string backupLocation { get; set; }
 
         [DataMember]
-        public DateTime latestBackupRestored { get; set; }
+        public DateTime backupTime { get; set; }
 
         public BackupStorage storageDetails;
 
-        public BackupInfo(string backupId, string backupLocation, BackupStorage storageDetails, DateTime latestBackupRestored)
+        public BackupInfo(string backupId, string backupLocation, BackupStorage storageDetails, DateTime backupTime)
         {
             this.backupId = backupId;
             this.backupLocation = backupLocation;
             this.storageDetails = storageDetails;
-            this.latestBackupRestored = latestBackupRestored;
+            this.backupTime = backupTime;
         }
 
-        public BackupInfo(string backupId, string backupLocation, DateTime latestBackupRestored)
+        public BackupInfo(string backupId, string backupLocation, DateTime backupTime)
         {
             this.backupId = backupId;
             this.backupLocation = backupLocation;
-            this.latestBackupRestored = latestBackupRestored;
+            this.backupTime = backupTime;
         }
+    }
+
+    [DataContract]
+    public class ClusterDetails
+    {
+        [DataMember]
+        public string address { get; set; }
+
+        [DataMember]
+        public string httpEndpoint { get; set; }
+
+        [DataMember]
+        public string clientConnectionEndpoint { get; set; }
+
+
+        public ClusterDetails(string address, string httpEndpoint, string clientConnectionEndpoint)
+        {
+            this.address = address;
+            this.clientConnectionEndpoint = clientConnectionEndpoint;
+            this.httpEndpoint = httpEndpoint;
+        }
+
     }
 }

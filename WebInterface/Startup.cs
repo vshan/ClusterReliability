@@ -80,6 +80,11 @@ namespace WebInterface
                     defaults: new { controller = "Home", action = "Modal" });
 
                 routes.MapRoute(
+                    name: "ConfigureModal",
+                    template: "ConfigureModal",
+                    defaults: new { controller = "Home", action = "ConfigureModal" });
+
+                routes.MapRoute(
                     name: "StatusModal",
                     template: "StatusModal",
                     defaults: new { controller = "Home", action = "StatusModal" });

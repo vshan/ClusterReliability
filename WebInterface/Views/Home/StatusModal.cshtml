@@ -7,25 +7,34 @@
     <table class="table table-striped" style="width:100%;">
         <thead>
             <tr>
-                <th>Service</th>
+                <th>ApplicationName</th>
+                <th>ServiceName</th>
+                <th>Primary Cluster</th>
                 <th>Primary PartitionId</th>
+                <th>SecondaryCluster</th>
                 <th>Secondary PartitionId</th>
-                <th>Latest BackupId Restored</th>
-                <th>Upto Date with Primary Partition till</th>
+                <th>Last Backup Restored</th>
+                <th>Currently Under Restore</th>
+                <th>Latest Backup available</th>
             </tr>
         </thead>
         <tbody>
-            <tr ng-repeat="partitionStatus in partitionsStatus">
+            <tr ng-repeat="partitionStatus in applicationStatus">
+                <td>{{partitionStatus.applicationName}}</td>
                 <td>{{partitionStatus.serviceName}}</td>
+                <td>{{partitionStatus.primaryCluster}}</td>
+                <td>{{partitionStatus.primaryPartitionId}}</td>
+                <td>{{partitionStatus.secondaryCluster}}</td>
                 <td>{{partitionStatus.partitionId}}</td>
-                <td>{{partitionStatus.mappedPartitionId}}</td>
-                <td>{{partitionStatus.backupId}}</td>
-                <td>{{partitionStatus.lastBackupRestored}}</td>
+                <td>{{partitionStatus.lastBackupRestored.backupTime}}({{partitionStatus.lastBackupRestored.backupId}})</td>
+                <td>{{partitionStatus.currentlyUnderRestore.backupTime}}({{partitionStatus.currentlyUnderRestore.backupId}})</td>
+                <td>{{partitionStatus.latestBackupAvailable.backupTime}}({{partitionStatus.latestBackupAvailable.backupId}})</td>
             </tr>
         </tbody>
     </table>
     <br /> <br />
-    <div class="modal-footer">
-        <button class="btn btn-primary" type="button" ng-click="Ok()">Ok</button>
-    </div>
+           <div class="modal-footer">
+               <button class="btn btn-primary" type="button" ng-click="disconfigure(configuredApp)">Disconfigure</button>
+               <button class="btn btn-warning" type="button" ng-click="cancel('statusModalInstance')">Cancel</button>
+           </div>
 </div>

@@ -12,8 +12,9 @@ namespace WebInterface.Models
     public class PartitionStatusModel
     {
 
-        public PartitionStatusModel(string serviceName, string partitionId, string mappedPartitionId, string lastBackupRestored, string backupId)
+        public PartitionStatusModel(Uri applicationName, Uri serviceName, string partitionId, string mappedPartitionId, string lastBackupRestored, string backupId)
         {
+            this.applicationName = applicationName;
             this.serviceName = serviceName;
             this.partitionId = partitionId;
             this.lastBackupRestored = lastBackupRestored;
@@ -21,15 +22,19 @@ namespace WebInterface.Models
             this.mappedPartitionId = mappedPartitionId;
         }
 
-        public PartitionStatusModel(string serviceName, string partitionId, string mappedPartitionId)
+        public PartitionStatusModel(Uri applicationName, Uri serviceName, string partitionId, string mappedPartitionId)
         {
+            this.applicationName = applicationName;
             this.serviceName = serviceName;
             this.partitionId = partitionId;
             this.mappedPartitionId = mappedPartitionId;
         }
 
         [DataMember]
-        string serviceName { get; set; }
+        Uri applicationName { get; set; }
+
+        [DataMember]
+        Uri serviceName { get; set; }
 
         [DataMember]
         string partitionId { get; set; }

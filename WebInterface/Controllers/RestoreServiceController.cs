@@ -16,6 +16,7 @@ using System.Web.Script.Serialization;
 using PolicyStorageService;
 using System.Fabric.Query;
 using WebInterface.Models;
+using System.Xml.Linq;
 
 namespace WebInterface.Controllers
 {
@@ -32,13 +33,14 @@ namespace WebInterface.Controllers
 
         // GET: api/Restore/5
         [HttpGet("{cs}", Name = "Get")]
-        public async Task<IActionResult> Get(String cs)
+        public async Task<IActionResult> Get(String cs, string php)
         {
             if (cs.Contains("http://"))
                 cs = cs.Replace("http://", "");
             if (cs.Contains("https://"))
                 cs = cs.Replace("https://", "");
-            FabricClient fabricClient = new FabricClient(cs);
+            string clientConnectionEndpoint = GetClientConnectionEndpoint(cs + ':' + php);
+            FabricClient fabricClient = new FabricClient(cs + ':' + clientConnectionEndpoint);
             List<String> applicationsList = new List<String>();
             FabricClient.QueryClient queryClient = fabricClient.QueryManager;
             System.Fabric.Query.ApplicationList appsList = await queryClient.GetApplicationListAsync();
@@ -55,49 +57,86 @@ namespace WebInterface.Controllers
         }
 
         [Route("policies/{cs}")]
-        [HttpGet]
-        public async Task<IActionResult> GetPolicies(String cs)
+        [HttpPost]
+        public async Task<IActionResult> GetPolicies(String cs, [FromBody]List<string> applications)
         {
-            string URL = "http://" + cs + "/BackupRestore/BackupPolicies";
-            string urlParameters = "?api-version=6.2-preview";
-            HttpClient client = new HttpClient
+            List<PolicyStorageEntity> policyDetails = new List<PolicyStorageEntity>();
+            List<string> policyNames = new List<string>();
+            foreach (string application in applications)
             {
-                BaseAddress = new Uri(URL)
-            };
-            client.DefaultRequestHeaders.Accept.Add(
-            new MediaTypeWithQualityHeaderValue("application/json"));
-
-            // List data response.
-            HttpResponseMessage response = await client.GetAsync(urlParameters);  // Blocking call!
-            if (response.IsSuccessStatusCode)
-            {
-                // Parse the response body. Blocking!
-                var content = response.Content.ReadAsAsync<JObject>().Result;
-                JArray array = (JArray)content["Items"];
-                List<String> policies = new List<string>();
-                foreach (var item in array)
+                string URL = "http://" + cs + "/Applications/" + application + "/$/GetBackupConfigurationInfo";
+                string urlParameters = "?api-version=6.2-preview";
+                HttpClient client = new HttpClient
                 {
-                    policies.Add(item["Name"].ToString());
+                    BaseAddress = new Uri(URL)
+                };
+                client.DefaultRequestHeaders.Accept.Add(
+                new MediaTypeWithQualityHeaderValue("application/json"));
+
+                // List data response.
+                HttpResponseMessage response = await client.GetAsync(urlParameters);  // Blocking call!
+                if (response.IsSuccessStatusCode)
+                {
+                    // Parse the response body. Blocking!
+                    var content = response.Content.ReadAsAsync<JObject>().Result;
+                    JArray array = (JArray)content["Items"];
+                    foreach (var item in array)
+                    {
+                        string policy = item["PolicyName"].ToString();
+                        if (!policyNames.Contains(policy))
+                            policyNames.Add(policy);
+                    }
                 }
-                return this.Json(policies);
+                else
+                {
+                    Console.WriteLine("{0} ({1})", (int)response.StatusCode, response.ReasonPhrase);
+                    return null;
+                }
+
+                foreach(string policyName in policyNames)
+                {
+                    PolicyStorageEntity policyStorageEntity = new PolicyStorageEntity();
+                    policyStorageEntity.policy = policyName;
+                    URL = "http://" + cs + "/BackupRestore/BackupPolicies/" + policyName;
+                    urlParameters = "?api-version=6.2-preview";
+                    client = new HttpClient
+                    {
+                        BaseAddress = new Uri(URL)
+                    };
+                    client.DefaultRequestHeaders.Accept.Add(
+                    new MediaTypeWithQualityHeaderValue("application/json"));
+
+                    // List data response.
+                    response = await client.GetAsync(urlParameters);  // Blocking call!
+                    if (response.IsSuccessStatusCode)
+                    {
+                        // Parse the response body. Blocking!
+                        var content = response.Content.ReadAsAsync<JObject>().Result;
+                        JObject objectData = (JObject)content["Storage"];
+                        BackupStorage backupStorage = JsonConvert.DeserializeObject<BackupStorage>(objectData.ToString());
+                        policyStorageEntity.backupStorage = backupStorage;
+                        policyDetails.Add(policyStorageEntity);
+                    }
+                    else
+                    {
+                        Console.WriteLine("{0} ({1})", (int)response.StatusCode, response.ReasonPhrase);
+                        return null;
+                    }
+                }
             }
-            else
-            {
-                Console.WriteLine("{0} ({1})", (int)response.StatusCode, response.ReasonPhrase);
-                return null;
-            }
+            return this.Json(policyDetails);
             
         }
 
         // POST: api/Restore
         [HttpPost]
-        [Route("add/{policyName}")]
-        public void Post([FromBody]BackupStorage backupStorage, string policyName)
+        [Route("add/{policyName}/{pccs}")]
+        public bool Post([FromBody]BackupStorage backupStorage, string policyName, string pccs)
         {
             IPolicyStorageService policyStorageServiceClient = ServiceProxy.Create<IPolicyStorageService>(new Uri("fabric:/CBA/PolicyStorageService"));
             try
             {
-               policyStorageServiceClient.PostStorageDetails(policyName, backupStorage);
+               return policyStorageServiceClient.PostStorageDetails(null, pccs).Result;
             }
             catch (Exception ex)
             {
@@ -107,10 +146,19 @@ namespace WebInterface.Controllers
         }
 
         [HttpPost]
-        [Route("configure/{applicationName}/{primaryCluster}/{secondaryCluster}/{httpEndpoint}/{clientConnectionEndpoint}")]
-        public void Configure(string applicationName, string primaryCluster,string secondaryCluster, string httpEndpoint, string clientConnectionEndpoint)
+        [Route("configure/{primaryCluster}/{secondaryCluster}/{primaryHttpEndpoint}/{secondaryHttpEndpoint")]
+        public void Configure([FromBody]JObject content, string primaryClusterAddress,string secondaryClusterAddress, string primaryHttpEndpoint, string secondaryHttpEndpoint)
         {
-            // BackupStorage backupStorage = JsonConvert.DeserializeObject<BackupStorage>(new JavaScriptSerializer().Serialize(value));
+            string primaryClientConnectionEndpoint = GetClientConnectionEndpoint(primaryClusterAddress + ':' + primaryHttpEndpoint);
+            string secondaryClientConnectionEndpoint = GetClientConnectionEndpoint(secondaryClusterAddress + ':' + secondaryHttpEndpoint);
+            if (primaryClientConnectionEndpoint == null || secondaryClientConnectionEndpoint == null)
+                return;
+            ClusterDetails primaryCluster = new ClusterDetails(primaryClusterAddress, primaryHttpEndpoint, primaryClientConnectionEndpoint);
+            ClusterDetails secondaryCluster = new ClusterDetails(secondaryClusterAddress, secondaryHttpEndpoint, secondaryClientConnectionEndpoint);
+            JArray applicationsData = (JArray)content["ApplicationsList"];
+            JArray policiesData = (JArray)content["PoliciesList"];
+            List<string> applicationsList = JsonConvert.DeserializeObject<List<string>>(applicationsData.ToString());
+            List<PolicyStorageEntity> policicesList = JsonConvert.DeserializeObject<List<PolicyStorageEntity>>(policiesData.ToString());
             FabricClient fabricClient = new FabricClient();
             ServicePartitionList partitionList = fabricClient.QueryManager.GetPartitionListAsync(new Uri("fabric:/CBA/RestoreService")).Result;
             foreach(Partition partition in partitionList)
@@ -120,63 +168,104 @@ namespace WebInterface.Controllers
                 IRestoreService restoreServiceClient = ServiceProxy.Create<IRestoreService>(new Uri("fabric:/CBA/RestoreService"), new ServicePartitionKey(lowKey));
                 try
                 {
-                    restoreServiceClient.Configure(applicationName, primaryCluster, secondaryCluster,httpEndpoint, clientConnectionEndpoint);
+                    restoreServiceClient.Configure(applicationsList, policicesList, primaryCluster, secondaryCluster);
                 }
                 catch (Exception ex)
                 {
-                    ServiceEventSource.Current.Message("Web Service: Exception configuring the application {0} : {1}", applicationName, ex);
+                    ServiceEventSource.Current.Message("Web Service: Exception configuring the application {0}", ex);
                     throw;
                 }
             }
         }
 
         [HttpGet]
-        [Route("status/{primaryCluster}/{httpEndpoint}/{clientConnectionEndpoint}/{applicationName}")]
-        public async Task<IEnumerable<PartitionStatusModel>> GetPartitionStatus(string primaryCluster, string httpEndpoint, string clientConnectionEndpoint, string applicationName)
+        [Route("disconfigure/{applicationName}")]
+        public async Task<string> Disconfigure(string applicationName)
         {
-            FabricClient fabricClient = new FabricClient(primaryCluster + ":" + clientConnectionEndpoint);
-            ServiceList serviceList = await fabricClient.QueryManager.GetServiceListAsync(new Uri("fabric:/" + applicationName));
-            List<PartitionStatusModel> partitionStatusList = new List<PartitionStatusModel>();
-            foreach(Service service in serviceList)
+            bool successfullyRemoved = true;
+            FabricClient fabricClient = new FabricClient();
+            ServicePartitionList partitionList = fabricClient.QueryManager.GetPartitionListAsync(new Uri("fabric:/CBA/RestoreService")).Result;
+            foreach (Partition partition in partitionList)
             {
-                ServicePartitionList partitionList = await fabricClient.QueryManager.GetPartitionListAsync(service.ServiceName);
-                foreach(Partition partition in partitionList)
+                var int64PartitionInfo = partition.PartitionInformation as Int64RangePartitionInformation;
+                long lowKey = (long)int64PartitionInfo?.LowKey;
+                IRestoreService restoreServiceClient = ServiceProxy.Create<IRestoreService>(new Uri("fabric:/CBA/RestoreService"), new ServicePartitionKey(lowKey));
+                try
                 {
-                    IRestoreService restoreServiceClient = ServiceProxy.Create<IRestoreService>(new Uri("fabric:/CBA/RestoreService"), new ServicePartitionKey(HashUtil.getLongHashCode(partition.PartitionInformation.Id.ToString())));
-                    PartitionWrapper mappedPartition = await restoreServiceClient.GetStatus(partition.PartitionInformation.Id);
-                    if (mappedPartition == null)
-                    {
-                        ServiceEventSource.Current.Message("It returned null");
-                        return null;
-                    }
-                    try
-                    {
-                        if (mappedPartition.LastBackup == null)
-                        {
-                            PartitionStatusModel partitionStatus = new PartitionStatusModel(service.ServiceName.ToString(), partition.PartitionInformation.Id.ToString(), mappedPartition.partitionId.ToString());
-                            partitionStatusList.Add(partitionStatus);
-                        }
-                        else
-                        {
-                            PartitionStatusModel partitionStatus = new PartitionStatusModel(service.ServiceName.ToString(), partition.PartitionInformation.Id.ToString(), mappedPartition.partitionId.ToString(), mappedPartition.LastBackup.latestBackupRestored.ToString(), mappedPartition.LastBackup.backupId.ToString());
-                            partitionStatusList.Add(partitionStatus);
-                        }
-                    }
-                    catch(Exception ex)
-                    {
-                        ServiceEventSource.Current.Message("Exception thrown while creating object : {0}", ex);
-                    }
-
+                    string applicationRemoved = await restoreServiceClient.Disconfigure("fabric:/" + applicationName);
+                    if(applicationRemoved == null) successfullyRemoved = false;
+                }
+                catch (Exception ex)
+                {
+                    ServiceEventSource.Current.Message("Web Service: Exception Disconfiguring {0}", ex);
+                    throw;
                 }
             }
-            if (partitionStatusList.Count == 0) return null;
-            return partitionStatusList;
+            if (successfullyRemoved) return applicationName;
+            return null;
+        }
+
+        [HttpGet]
+        [Route("status")]
+        public async Task<IEnumerable<PartitionWrapper>> GetPartitionStatus()
+        {
+            FabricClient fabricClient = new FabricClient();
+            ServicePartitionList partitionList = fabricClient.QueryManager.GetPartitionListAsync(new Uri("fabric:/CBA/RestoreService")).Result;
+            List<PartitionStatusModel> partitionStatusList = new List<PartitionStatusModel>();
+            List<PartitionWrapper> mappedPartitions = new List<PartitionWrapper>();
+            foreach (Partition partition in partitionList)
+            {
+                List<PartitionWrapper> servicePartitions = new List<PartitionWrapper>();
+                var int64PartitionInfo = partition.PartitionInformation as Int64RangePartitionInformation;
+                long lowKey = (long)int64PartitionInfo?.LowKey;
+                IRestoreService restoreServiceClient = ServiceProxy.Create<IRestoreService>(new Uri("fabric:/CBA/RestoreService"), new ServicePartitionKey(lowKey));
+                try
+                {
+                    servicePartitions = await restoreServiceClient.GetStatus();
+                    mappedPartitions.AddRange(servicePartitions);
+                }
+                catch (Exception ex)
+                {
+                    ServiceEventSource.Current.Message("Web Service: Exception getting the status {0}", ex);
+                    throw;
+                }
+            }
+
+            //            if (partitionStatusList.Count == 0) return null;
+            if (mappedPartitions.Count == 0) return null;
+            return mappedPartitions;
             /*var response = JsonConvert.SerializeObject(new
             {
                 partitionStatusList
             });
             return response;*/
 
+        }
+
+        public string GetClientConnectionEndpoint(string clusterConnectionString)
+        {
+            string URL = "http://" + clusterConnectionString +"/$/GetClusterManifest";
+            string urlParameters = "?api-version=6.2";
+            HttpClient client = new HttpClient();
+            client.BaseAddress = new Uri(URL);
+            client.DefaultRequestHeaders.Accept.Add(
+            new MediaTypeWithQualityHeaderValue("application/json"));
+
+            HttpResponseMessage response = client.GetAsync(urlParameters).Result;
+            if (response.IsSuccessStatusCode)
+            {
+                var content = response.Content.ReadAsAsync<JObject>().Result;
+                JValue objectData = (JValue)content["Manifest"];
+                XElement xel = XElement.Parse(objectData.ToString());
+                XElement xElement = xel.Descendants().First().Descendants().First().Descendants().First().Descendants().First();
+
+                return xElement.Attribute("Port").Value.ToString();
+            }
+            else
+            {
+                Console.WriteLine("{0} ({1})", (int)response.StatusCode, response.ReasonPhrase);
+                return null;
+            }
         }
 
         // PUT: api/Restore/5
@@ -191,4 +280,6 @@ namespace WebInterface.Controllers
         {
         }
     }
+
+
 }

@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Fabric;
+using System.Fabric.Query;
 using System.Linq;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -21,17 +22,21 @@ namespace RestoreService
     /// <summary>
     /// An instance of this class is created for each service replica by the Service Fabric runtime.
     /// </summary>
-    internal sealed class RestoreService : StatefulService, IRestoreService
+    internal sealed class RestoreService : Microsoft.ServiceFabric.Services.Runtime.StatefulService, IRestoreService
     {
-        public RestoreService(StatefulServiceContext context)
-            : base(context)
-        { }
-
-        private string primaryClusterConnectionString;
-
-        private string secondaryClusterConnectionString;
 
         public static Dictionary<Guid, Task<RestoreResult>> workFlowsInProgress;
+
+        private System.Threading.Timer timer;
+
+        long periodTimeSpan = 60000;
+
+        public RestoreService(StatefulServiceContext context)
+            : base(context)
+        {
+            workFlowsInProgress = new Dictionary<Guid, Task<RestoreResult>>();
+            this.timer = new System.Threading.Timer(this.TimerTickCallback, null, Timeout.Infinite, Timeout.Infinite);
+        }
 
         /// <summary>
         /// Optional override to create listeners (e.g., HTTP, Service Remoting, WCF, etc.) for this service replica to handle client or user requests.
@@ -100,8 +105,147 @@ namespace RestoreService
                 await tx.CommitAsync();
             }
             */
-            List<String> list = await GetApplicationsDeployed("localhost:19000");
-            ServiceEventSource.Current.ServiceMessage(this.Context, "Application name is :"+list[0]);
+            var startTimeSpan = TimeSpan.Zero;
+            var periodTimeSpan = TimeSpan.FromMinutes(1);
+
+            timer.Change(0, Timeout.Infinite);
+
+            //var timer = new System.Threading.Timer(async (e) =>
+            //{
+            //    await OnTimerTick();
+            //}, null, startTimeSpan, periodTimeSpan);
+            //List<String> list = await GetApplicationsDeployed("localhost:19000");
+            //ServiceEventSource.Current.ServiceMessage(this.Context, "Application name is :"+list[0]);
+
+            while (true)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+            }
+        }
+
+        private void TimerTickCallback(object state)
+        {
+            try
+            {
+                this.OnTimerTick().Wait();
+            }
+            finally
+            {
+                // Configure timer to trigger after 1 Min.
+                timer.Change(this.periodTimeSpan, Timeout.Infinite);
+            }
+        }
+
+        public async Task OnTimerTick()
+        {
+            IReliableDictionary<Guid, PartitionWrapper> myDictionary = await this.StateManager.GetOrAddAsync<IReliableDictionary<Guid, PartitionWrapper>>("partitionDictionary");
+            List<Guid> keysToRemove = new List<Guid>();
+            if (workFlowsInProgress.Count != 0)
+            {
+                try
+                {
+                    foreach (KeyValuePair<Guid, Task<RestoreResult>> workFlow in workFlowsInProgress)
+                    {
+                        Task<RestoreResult> task = workFlow.Value;
+                        if (task.IsCompleted)
+                        {
+                            RestoreResult restoreResult = task.Result;
+                            using (ITransaction tx = this.StateManager.CreateTransaction())
+                            {
+                                ConditionalValue<PartitionWrapper> partitionWrapper = await myDictionary.TryGetValueAsync(tx, workFlow.Key);
+                                if (partitionWrapper.HasValue)
+                                {
+                                    if (restoreResult.restoreState.Equals("Success"))
+                                    {
+                                        PartitionWrapper updatedPartitionWrapper = ObjectExtensions.Copy(partitionWrapper.Value);
+                                        updatedPartitionWrapper.LastBackupRestored = restoreResult.restoreInfo;
+                                        updatedPartitionWrapper.CurrentlyUnderRestore = null;
+                                        await myDictionary.SetAsync(tx, workFlow.Key, updatedPartitionWrapper);
+                                    }
+                                    ServiceEventSource.Current.ServiceMessage(this.Context, "Successfully Restored!!! ");
+                                }
+                                await tx.CommitAsync();
+                            }
+                            keysToRemove.Add(workFlow.Key);
+                        }
+                    }
+                    foreach(var key in keysToRemove)
+                    {
+                        workFlowsInProgress.Remove(key);
+                    }
+                }
+                catch(Exception ex)
+                {
+                    ServiceEventSource.Current.Message("exception caught : {0}",ex);
+                }
+            }
+            using (ITransaction tx = this.StateManager.CreateTransaction())
+            {
+                IAsyncEnumerable<KeyValuePair<Guid, PartitionWrapper>> enumerable = await myDictionary.CreateEnumerableAsync(tx);
+                IAsyncEnumerator<KeyValuePair<Guid, PartitionWrapper>> asyncEnumerator = enumerable.GetAsyncEnumerator();
+                while (await asyncEnumerator.MoveNextAsync(CancellationToken.None))
+                {
+                    Guid primaryPartition = asyncEnumerator.Current.Key;
+                    PartitionWrapper secondaryPartition = asyncEnumerator.Current.Value;
+                    if (secondaryPartition == null)
+                        continue;
+                    JToken backupInfoToken = await GetLatestBackupAvailable(primaryPartition, "http://" + secondaryPartition.primaryCluster.address + ":" + secondaryPartition.primaryCluster.httpEndpoint);
+                    if (backupInfoToken == null)
+                        continue;
+                    BackupInfo backupInfo = new BackupInfo(backupInfoToken["BackupId"].ToString(), backupInfoToken["BackupLocation"].ToString(), (DateTime)backupInfoToken["CreationTimeUtc"]);
+                    string backupPolicy = await GetPolicy("http://" + secondaryPartition.primaryCluster.address + ":" + secondaryPartition.primaryCluster.httpEndpoint, primaryPartition);
+                    if (backupPolicy == null)
+                        continue;
+                    Task<RestoreResult> task = workFlowsInProgress.TryGetValue(primaryPartition, out Task<RestoreResult> value) ? value : null;
+                    if (task == null)
+                    {
+                        if (secondaryPartition.LastBackupRestored == null || DateTime.Compare(backupInfo.backupTime, secondaryPartition.LastBackupRestored.backupTime) > 0)
+                        {
+                            Task<RestoreResult> restoreTask = Task<RestoreResult>.Run(() => RestoreWorkFlow(backupInfoToken, backupPolicy, secondaryPartition, "http://" + secondaryPartition.secondaryCluster + ":" + secondaryPartition.secondaryCluster.httpEndpoint, "partitionDictionary"));
+                            workFlowsInProgress.Add(asyncEnumerator.Current.Key, restoreTask);
+                            PartitionWrapper updatedPartitionWrapper = ObjectExtensions.Copy(secondaryPartition);
+                            updatedPartitionWrapper.LatestBackupAvailable = backupInfo;
+                            updatedPartitionWrapper.CurrentlyUnderRestore = backupInfo;
+                            await myDictionary.SetAsync(tx, primaryPartition, updatedPartitionWrapper);
+                        }
+                        else
+                            continue;
+                    }
+                    else if (task.IsCompleted)
+                    {
+                        RestoreResult restoreResult = task.Result;
+                        if (restoreResult.restoreState.Equals("Success"))
+                        {
+                            PartitionWrapper updatedPartitionWrapper = ObjectExtensions.Copy(secondaryPartition);
+                            updatedPartitionWrapper.LastBackupRestored = restoreResult.restoreInfo;
+                            updatedPartitionWrapper.CurrentlyUnderRestore = null;
+                            await myDictionary.SetAsync(tx, primaryPartition, updatedPartitionWrapper);
+                            ServiceEventSource.Current.ServiceMessage(this.Context, "Successfully Restored!!! ");
+                        }
+                        workFlowsInProgress.Remove(primaryPartition);
+                        if (secondaryPartition.LastBackupRestored == null || DateTime.Compare(backupInfo.backupTime, secondaryPartition.LastBackupRestored.backupTime) > 0)
+                        {
+                            Task<RestoreResult> restoreTask = Task<string>.Run(() => RestoreWorkFlow(backupInfoToken, backupPolicy, secondaryPartition, "http://" + secondaryPartition.secondaryCluster.address + ":" + secondaryPartition.secondaryCluster.httpEndpoint, "partitionDictionary"));
+                            workFlowsInProgress.Add(primaryPartition, restoreTask);
+                            PartitionWrapper updatedPartitionWrapper = ObjectExtensions.Copy(secondaryPartition);
+                            updatedPartitionWrapper.LatestBackupAvailable = backupInfo;
+                            updatedPartitionWrapper.CurrentlyUnderRestore = backupInfo;
+                            await myDictionary.SetAsync(tx, primaryPartition, updatedPartitionWrapper);
+                        }
+                        else
+                            continue;
+                    }
+                    else
+                    {
+                        PartitionWrapper updatedPartitionWrapper = ObjectExtensions.Copy(secondaryPartition);
+                        updatedPartitionWrapper.LatestBackupAvailable = backupInfo;
+                        await myDictionary.SetAsync(tx, primaryPartition, updatedPartitionWrapper);
+                    }
+                }
+                await tx.CommitAsync();
+            }
+
         }
 
         public async Task<List<String>> GetApplicationsDeployed(String clusterConnectionString)
@@ -121,11 +265,17 @@ namespace RestoreService
             return applicationsList;
         }
 
-        public async Task Configure(String applicationName, String primaryCluster, String secondaryCluster, String httpEndpoint, String clientConnectionEndpoint)
+        public async Task Configure(List<string> applications, List<PolicyStorageEntity> policyDeatils, ClusterDetails primaryCluster, ClusterDetails secondaryCluster)
         {
             IReliableDictionary<Guid, PartitionWrapper> myDictionary = await this.StateManager.GetOrAddAsync<IReliableDictionary<Guid, PartitionWrapper>>("partitionDictionary");
-            await MapPartitionsOfApplication(new Uri("fabric:/" + applicationName), primaryCluster + ':' + clientConnectionEndpoint, secondaryCluster+ ":" + clientConnectionEndpoint, "partitionDictionary");
-            using (ITransaction tx = this.StateManager.CreateTransaction())
+            IPolicyStorageService policyStorageClient = ServiceProxy.Create<IPolicyStorageService>(new Uri("fabric:/CBA/PolicyStorageService"));
+            bool stored = await policyStorageClient.PostStorageDetails(policyDeatils, primaryCluster.address + ':' + primaryCluster.httpEndpoint);
+            foreach(string application in applications)
+            {
+                await MapPartitionsOfApplication(new Uri("fabric:/" + application), primaryCluster, secondaryCluster, "partitionDictionary");
+            }
+
+            /*using (ITransaction tx = this.StateManager.CreateTransaction())
             {
                 IAsyncEnumerable<KeyValuePair<Guid, PartitionWrapper>> enumerable = await myDictionary.CreateEnumerableAsync(tx);
                 IAsyncEnumerator<KeyValuePair<Guid, PartitionWrapper>> asyncEnumerator = enumerable.GetAsyncEnumerator();
@@ -136,30 +286,73 @@ namespace RestoreService
                         continue;
                     PartitionWrapper secondaryPartition = asyncEnumerator.Current.Value;
                     string backupPolicy = await GetPolicy("http://" + primaryCluster + ":" + httpEndpoint, asyncEnumerator.Current.Key);
-                    if (secondaryPartition.LastBackup == null || DateTime.Compare((DateTime)backupInfo["CreationTimeUtc"], secondaryPartition.LastBackup.latestBackupRestored) > 0)
+                    if (secondaryPartition.LastBackupRestored == null || DateTime.Compare((DateTime)backupInfo["CreationTimeUtc"], secondaryPartition.LastBackupRestored.backupTime) > 0)
                         await RestoreLatestBackupAvailable(backupInfo, backupPolicy, secondaryPartition, "http://" + secondaryCluster + ":" + httpEndpoint, "partitionDictionary");
                     else
                         continue;
                 }
                 await tx.CommitAsync();
             }
+            */
+//            await OnTimerTick();
         }
 
-        public async Task<PartitionWrapper> GetStatus(Guid partitionId)
+        public async Task<string> Disconfigure(string applicationName)
         {
+            List<Guid> keysToRemove = new List<Guid>();
             IReliableDictionary<Guid, PartitionWrapper> myDictionary = await this.StateManager.GetOrAddAsync<IReliableDictionary<Guid, PartitionWrapper>>("partitionDictionary");
-            PartitionWrapper mappedPartition = null ;
             using (ITransaction tx = this.StateManager.CreateTransaction())
             {
-                ConditionalValue<PartitionWrapper> partitionWrapper = await myDictionary.TryGetValueAsync(tx, partitionId);
-                if (partitionWrapper.HasValue)
+                IAsyncEnumerable<KeyValuePair<Guid, PartitionWrapper>> enumerable = await myDictionary.CreateEnumerableAsync(tx);
+                IAsyncEnumerator<KeyValuePair<Guid, PartitionWrapper>> asyncEnumerator = enumerable.GetAsyncEnumerator();
+                while (await asyncEnumerator.MoveNextAsync(CancellationToken.None))
                 {
-                    mappedPartition = partitionWrapper.Value;
-                    ServiceEventSource.Current.ServiceMessage(this.Context, "Successfully Retrieved!!! ");
+                    PartitionWrapper secondaryPartition = asyncEnumerator.Current.Value;
+                    if (secondaryPartition.applicationName.ToString().Equals(applicationName))
+                    {
+                        keysToRemove.Add(asyncEnumerator.Current.Key);
+                    }
                 }
                 await tx.CommitAsync();
             }
-            return mappedPartition;
+            bool allPartitionsRemoved = true;
+            using (ITransaction tx = this.StateManager.CreateTransaction())
+            {
+                foreach(Guid key in keysToRemove)
+                {
+                    ConditionalValue<PartitionWrapper> value  = myDictionary.TryRemoveAsync(tx, key).Result;
+                    if (!value.HasValue)
+                    {
+                        allPartitionsRemoved = false;
+                    }
+                }
+                await tx.CommitAsync();
+            }
+            if (allPartitionsRemoved) return applicationName;
+            return null;
+        }
+
+        public async Task<List<PartitionWrapper>> GetStatus()
+        {
+            IReliableDictionary<Guid, PartitionWrapper> myDictionary = await this.StateManager.GetOrAddAsync<IReliableDictionary<Guid, PartitionWrapper>>("partitionDictionary");
+            List<PartitionWrapper> mappedPartitions = new List<PartitionWrapper>();
+            using (ITransaction tx = this.StateManager.CreateTransaction())
+            {
+                IAsyncEnumerable<KeyValuePair<Guid, PartitionWrapper>> enumerable = await myDictionary.CreateEnumerableAsync(tx);
+                IAsyncEnumerator<KeyValuePair<Guid, PartitionWrapper>> asyncEnumerator = enumerable.GetAsyncEnumerator();
+                while (await asyncEnumerator.MoveNextAsync(CancellationToken.None))
+                {
+                    ConditionalValue<PartitionWrapper> partitionWrapper = await myDictionary.TryGetValueAsync(tx,asyncEnumerator.Current.Key);
+                    if (partitionWrapper.HasValue)
+                    {
+                        PartitionWrapper mappedPartition = partitionWrapper.Value;
+                        mappedPartitions.Add(mappedPartition);
+                        ServiceEventSource.Current.ServiceMessage(this.Context, "Successfully Retrieved!!! ");
+                    }
+                }
+                await tx.CommitAsync();
+            }
+            return mappedPartitions;
         }
 
         public async Task<String> GetPolicy(string primaryCluster, Guid partitionId)
@@ -175,6 +368,8 @@ namespace RestoreService
             if (response.IsSuccessStatusCode)
             {
                 var content = response.Content.ReadAsAsync<JObject>().Result;
+                if (content == null)
+                    return null;
                 string policy = content["PolicyName"].ToString();
                 return policy;
             }
@@ -185,7 +380,7 @@ namespace RestoreService
             }
         }
 
-        public async Task RestoreLatestBackupAvailable(JToken latestbackupInfo, string policy, PartitionWrapper partition, String clusterConnectionString,String partitionDictionary)
+        public async Task<RestoreResult> RestoreWorkFlow(JToken latestbackupInfo, string policy, PartitionWrapper partition, String clusterConnectionString,String partitionDictionary)
         {
             IReliableDictionary<Guid, PartitionWrapper> myDictionary = await this.StateManager.GetOrAddAsync<IReliableDictionary<Guid, PartitionWrapper>>(partitionDictionary);
             HttpClient client = new HttpClient();
@@ -198,45 +393,40 @@ namespace RestoreService
             if (backupStorage == null)
             {
                 ServiceEventSource.Current.ServiceMessage(this.Context, "backupstorage is null");
-                return;
+                return null;
             }
             BackupInfo backupInfo = new BackupInfo(latestbackupInfo["BackupId"].ToString(), latestbackupInfo["BackupLocation"].ToString(), backupStorage, (DateTime)latestbackupInfo["CreationTimeUtc"]);
             // List data response.
             HttpResponseMessage response = await client.PostAsJsonAsync(urlParameters,backupInfo);  // Blocking call!
             if (response.IsSuccessStatusCode)
             {
-                ServiceEventSource.Current.ServiceMessage(this.Context, "Successfully Restored!!! ");
-                using(ITransaction tx = this.StateManager.CreateTransaction())
+                string restoreState = "";
+                do
                 {
-                    ConditionalValue<PartitionWrapper> partitionWrapper = await myDictionary.TryGetValueAsync(tx, partition.partitionId);
-                    if (partitionWrapper.HasValue)
-                    {
-                        PartitionWrapper updatedPartitionWrapper = ObjectExtensions.Copy(partitionWrapper.Value);
-                        updatedPartitionWrapper.LastBackup = backupInfo;
-                        await myDictionary.SetAsync(tx, partition.partitionId, updatedPartitionWrapper);
-                        ServiceEventSource.Current.ServiceMessage(this.Context, "Successfully Restored!!! ");
-                    }
-                    await tx.CommitAsync();
-                }
+                    await Task.Delay(10000);
+                    restoreState = GetRestoreState(partition, clusterConnectionString);
+                } while (restoreState.Equals("Accepted") || restoreState.Equals("RestoreInProgress"));
+                return new RestoreResult(backupInfo, restoreState);
             }
             else
             {
                 Console.WriteLine("{0} ({1})", (int)response.StatusCode, response.ReasonPhrase);
+                return null;
             }
 
         }
 
-        public async Task MapPartitionsOfApplication(Uri applicationName, string primaryClusterConnectionString, string secondaryClusterConnectionString, String reliableDictionary)
+        public async Task MapPartitionsOfApplication(Uri applicationName, ClusterDetails primaryCluster, ClusterDetails secondaryCluster, String reliableDictionary)
         {
-            FabricClient primaryFabricClient = new FabricClient(primaryClusterConnectionString);
-            FabricClient secondaryFabricClient = new FabricClient(secondaryClusterConnectionString);
+            FabricClient primaryFabricClient = new FabricClient(primaryCluster.address + ':' + primaryCluster.clientConnectionEndpoint);
+            FabricClient secondaryFabricClient = new FabricClient(secondaryCluster.address + ':' + secondaryCluster.clientConnectionEndpoint);
             IReliableDictionary<Guid, PartitionWrapper> myDictionary = await this.StateManager.GetOrAddAsync<IReliableDictionary<Guid, PartitionWrapper>>(reliableDictionary);
-            System.Fabric.Query.ServiceList services = await primaryFabricClient.QueryManager.GetServiceListAsync(applicationName);
-            foreach(System.Fabric.Query.Service service in services)
+            ServiceList services = await primaryFabricClient.QueryManager.GetServiceListAsync(applicationName);
+            foreach(Service service in services)
             {
-                System.Fabric.Query.ServicePartitionList primaryPartitions = await primaryFabricClient.QueryManager.GetPartitionListAsync(service.ServiceName);
-                System.Fabric.Query.ServicePartitionList secondaryPartitions = await secondaryFabricClient.QueryManager.GetPartitionListAsync(service.ServiceName);
-                await MapPartitions(primaryPartitions, secondaryPartitions, myDictionary);
+                ServicePartitionList primaryPartitions = await primaryFabricClient.QueryManager.GetPartitionListAsync(service.ServiceName);
+                ServicePartitionList secondaryPartitions = await secondaryFabricClient.QueryManager.GetPartitionListAsync(service.ServiceName);
+                await MapPartitions(applicationName, service.ServiceName, primaryCluster, primaryPartitions, secondaryCluster, secondaryPartitions, reliableDictionary);
                 using(var tx = this.StateManager.CreateTransaction())
                 {
                     var result = await myDictionary.GetCountAsync(tx);
@@ -246,28 +436,29 @@ namespace RestoreService
             }
         }
 
-        public async Task MapPartitions(System.Fabric.Query.ServicePartitionList partitionsInPrimary, System.Fabric.Query.ServicePartitionList partitionsInSecondary, IReliableDictionary<Guid, PartitionWrapper> myDictionary)
+        public async Task MapPartitions(Uri applicationName, Uri serviceName, ClusterDetails primaryCluster, ServicePartitionList partitionsInPrimary, ClusterDetails secondaryCluster,ServicePartitionList partitionsInSecondary, string reliableDictionary)
         {
             if (partitionsInPrimary != null)
             {
                 ServicePartitionKind partitionKind = partitionsInPrimary[0].PartitionInformation.Kind;
                 if (partitionKind.Equals(ServicePartitionKind.Int64Range))
                 {
-                    await MapInt64Partitions(partitionsInPrimary, partitionsInSecondary, myDictionary);
+                    await MapInt64Partitions(applicationName, serviceName, primaryCluster, partitionsInPrimary, secondaryCluster, partitionsInSecondary, reliableDictionary);
                 }
                 else if (partitionKind.Equals(ServicePartitionKind.Named))
                 {
-                    await MapNamedPartitions(partitionsInPrimary, partitionsInSecondary, myDictionary);
+                    await MapNamedPartitions(applicationName, serviceName, primaryCluster, partitionsInPrimary, secondaryCluster, partitionsInSecondary, reliableDictionary);
                 }
                 else if (partitionKind.Equals(ServicePartitionKind.Singleton))
                 {
-                    await MapSingletonPartition(partitionsInPrimary, partitionsInSecondary, myDictionary);
+                    await MapSingletonPartition(applicationName, serviceName, primaryCluster, partitionsInPrimary, secondaryCluster, partitionsInSecondary, reliableDictionary);
                 }
             }
         }
 
-        public async Task MapInt64Partitions(System.Fabric.Query.ServicePartitionList primaryPartitions, System.Fabric.Query.ServicePartitionList secondaryPartitions, IReliableDictionary<Guid, PartitionWrapper> myDictionary)
+        public async Task MapInt64Partitions(Uri applicationName, Uri serviceName, ClusterDetails primaryCluster, ServicePartitionList primaryPartitions, ClusterDetails secondaryCluster, ServicePartitionList secondaryPartitions, string reliableDictionary)
         {
+            IReliableDictionary<Guid, PartitionWrapper> myDictionary = await this.StateManager.GetOrAddAsync<IReliableDictionary<Guid, PartitionWrapper>>(reliableDictionary);
             foreach (var primaryPartition in primaryPartitions)
             {
                 long hashCode = HashUtil.getLongHashCode(primaryPartition.PartitionInformation.Id.ToString());
@@ -283,7 +474,7 @@ namespace RestoreService
 
                             using (var tx = this.StateManager.CreateTransaction())
                             {
-                                var result = await myDictionary.TryAddAsync(tx, primaryPartition.PartitionInformation.Id, new PartitionWrapper(secondaryPartition));
+                                var result = await myDictionary.TryAddAsync(tx, primaryPartition.PartitionInformation.Id, new PartitionWrapper(secondaryPartition, primaryPartition.PartitionInformation.Id, applicationName, serviceName, primaryCluster, secondaryCluster));
 
                                 ServiceEventSource.Current.ServiceMessage(this.Context, result ? "Successfully Mapped Partition-{0} to Partition-{1}" : "Already Exists", primaryPartition.PartitionInformation.Id, secondaryPartition.PartitionInformation.Id);
                                 // If an exception is thrown before calling CommitAsync, the transaction aborts, all changes are 
@@ -296,9 +487,10 @@ namespace RestoreService
             }
         }
 
-        public async Task MapNamedPartitions(System.Fabric.Query.ServicePartitionList primaryPartitions, System.Fabric.Query.ServicePartitionList secondaryPartitions, IReliableDictionary<Guid, PartitionWrapper> myDictionary)
+        public async Task MapNamedPartitions(Uri applicationName, Uri serviceName, ClusterDetails primaryCluster, ServicePartitionList primaryPartitions, ClusterDetails secondaryCluster, ServicePartitionList secondaryPartitions, string reliableDictionary)
         {
-            foreach(var primaryPartition in primaryPartitions)
+            IReliableDictionary<Guid, PartitionWrapper> myDictionary = await this.StateManager.GetOrAddAsync<IReliableDictionary<Guid, PartitionWrapper>>(reliableDictionary);
+            foreach (var primaryPartition in primaryPartitions)
             {
                 var partitionNamePrimary = (primaryPartition.PartitionInformation as NamedPartitionInformation).Name;
                 foreach (var secondaryPartition in secondaryPartitions)
@@ -308,7 +500,7 @@ namespace RestoreService
                     {
                         using (var tx = this.StateManager.CreateTransaction())
                         {
-                            var result = await myDictionary.TryAddAsync(tx, primaryPartition.PartitionInformation.Id, new PartitionWrapper(secondaryPartition));
+                            var result = await myDictionary.TryAddAsync(tx, primaryPartition.PartitionInformation.Id, new PartitionWrapper(secondaryPartition, primaryPartition.PartitionInformation.Id, applicationName, serviceName, primaryCluster, secondaryCluster));
 
                             ServiceEventSource.Current.ServiceMessage(this.Context, result ? "Successfully Mapped Partition-{0} to Partition-{1}" : "Already Exists", primaryPartition.PartitionInformation.Id, secondaryPartition.PartitionInformation.Id);
                             // If an exception is thrown before calling CommitAsync, the transaction aborts, all changes are 
@@ -320,11 +512,12 @@ namespace RestoreService
             }
         }
 
-        public async Task MapSingletonPartition(System.Fabric.Query.ServicePartitionList primaryPartitions, System.Fabric.Query.ServicePartitionList secondaryPartitions, IReliableDictionary<Guid, PartitionWrapper> myDictionary)
+        public async Task MapSingletonPartition(Uri applicationName, Uri serviceName,ClusterDetails primaryCluster, ServicePartitionList primaryPartitions, ClusterDetails secondaryCluster, ServicePartitionList secondaryPartitions, string reliableDictionary)
         {
+            IReliableDictionary<Guid, PartitionWrapper> myDictionary = await this.StateManager.GetOrAddAsync<IReliableDictionary<Guid, PartitionWrapper>>(reliableDictionary);
             using (var tx = this.StateManager.CreateTransaction())
             {
-                var result = await myDictionary.TryAddAsync(tx, primaryPartitions[0].PartitionInformation.Id, new PartitionWrapper(secondaryPartitions[0]));
+                var result = await myDictionary.TryAddAsync(tx, primaryPartitions[0].PartitionInformation.Id, new PartitionWrapper(secondaryPartitions[0], primaryPartitions[0].PartitionInformation.Id, applicationName, serviceName, primaryCluster, secondaryCluster));
 
                 ServiceEventSource.Current.ServiceMessage(this.Context, result ? "Successfully Mapped Partition-{0} to Partition-{1}" : "Already Exists", primaryPartitions[0].PartitionInformation.Id, secondaryPartitions[0].PartitionInformation.Id);
                 // If an exception is thrown before calling CommitAsync, the transaction aborts, all changes are 
@@ -354,6 +547,31 @@ namespace RestoreService
                     ServiceEventSource.Current.ServiceMessage(this.Context, "BackUpID :" + item["BackupId"]);
                 }
                 return array.Last;
+            }
+            else
+            {
+                Console.WriteLine("{0} ({1})", (int)response.StatusCode, response.ReasonPhrase);
+                return null;
+            }
+        }
+
+        public string GetRestoreState(PartitionWrapper partition, string clusterConnectionString)
+        {
+            string URL =  clusterConnectionString + "/Partitions/" + partition.partitionId + "/$/GetRestoreProgress";
+            string urlParameters = "?api-version=6.2-preview";
+            HttpClient client = new HttpClient();
+            client.BaseAddress = new Uri(URL);
+            client.DefaultRequestHeaders.Accept.Add(
+            new MediaTypeWithQualityHeaderValue("application/json"));
+
+            // List data response.
+            HttpResponseMessage response = client.GetAsync(urlParameters).Result;  // Blocking call!
+            if (response.IsSuccessStatusCode)
+            {
+                // Parse the response body. Blocking!
+                var content = response.Content.ReadAsAsync<JObject>().Result;
+                string restoreState = content["RestoreState"].ToString();
+                return restoreState;
             }
             else
             {

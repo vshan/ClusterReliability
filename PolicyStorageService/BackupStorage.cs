@@ -20,27 +20,26 @@ namespace PolicyStorageService
         public String path;
 
         [DataMember]
-        public String primaryUserName;
+        public String primaryUsername;
 
         [DataMember]
         public String primaryPassword;
 
         [DataMember]
-        public String secondaryUserName;
+        public String secondaryUsername;
 
         [DataMember]
         public String secondaryPassword;
 
         [DataMember]
-        public String friendlyName;
+        public String friendlyname;
 
         [DataMember]
         public String containerName;
 
-        public BackupStorage(String storageKind, String path)
+        public BackupStorage()
         {
-            this.storageKind = storageKind;
-            this.path = path;
+
         }
     }
 }

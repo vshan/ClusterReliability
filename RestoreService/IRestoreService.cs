@@ -1,5 +1,6 @@
 ﻿using Microsoft.ServiceFabric.Services.Remoting;
 using Microsoft.ServiceFabric.Services.Remoting.FabricTransport;
+using PolicyStorageService;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -11,9 +12,11 @@ namespace RestoreService
 {
     public interface IRestoreService :  IService
     {
-        Task Configure(String applicationName, String primaryCluster, String secondaryCluster, String httpEndpoint, String clientConnectionEndpoint);
+        Task Configure(List<String> applications, List<PolicyStorageEntity> policies, ClusterDetails primaryCluster, ClusterDetails secondaryCluster);
 
-        Task<PartitionWrapper> GetStatus(Guid partitionId);
+        Task<string> Disconfigure(string applicationName);
+
+        Task<List<PartitionWrapper>> GetStatus();
 
     }
 }
