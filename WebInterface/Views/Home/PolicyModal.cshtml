@@ -13,19 +13,19 @@
                             {{policy.policy}} <i class="pull-right glyphicon" ng-class="{'glyphicon-chevron-down': status.open, 'glyphicon-chevron-right': !status.open}"></i>
                         </uib-accordion-heading>
                         <form class="col-xs-12 center-block">
-                            <div class="col-xs-offset-0 form-group" ng-if="policy.backupStorage.StorageKind == 'AzureBlobStore'">
+                            <div class="col-xs-offset-0 form-group" ng-if="policy.backupStorage.storageKind == 'AzureBlobStore'">
                                 <input type="text" class="form-control" placeholder="connectionString" ng-model="policy.backupStorage.connectionString" />
                             </div>
-                            <div class="col-xs-offset-0 form-group" ng-if="policy.backupStorage.StorageKind == 'FileShare'">
+                            <div class="col-xs-offset-0 form-group" ng-if="policy.backupStorage.storageKind == 'FileShare'">
                                 <input type="text" class="form-control" placeholder="primaryUsername" ng-model="policy.backupStorage.primaryUsername" />
                             </div>
-                            <div class="col-xs-offset-0 form-group" ng-if="policy.backupStorage.StorageKind == 'FileShare'">
+                            <div class="col-xs-offset-0 form-group" ng-if="policy.backupStorage.storageKind == 'FileShare'">
                                 <input type="text" class="form-control" placeholder="primaryPassword" ng-model="policy.backupStorage.primaryPassword" />
                             </div>
-                            <div class="col-xs-offset-0 form-group" ng-if="policy.backupStorage.StorageKind == 'FileShare'">
+                            <div class="col-xs-offset-0 form-group" ng-if="policy.backupStorage.storageKind == 'FileShare'">
                                 <input type="text" class="form-control" placeholder="secondaryUsername" ng-model="policy.backupStorage.secondaryUsername" />
                             </div>
-                            <div class="col-xs-offset-0 form-group" ng-if="policy.backupStorage.StorageKind == 'FileShare'">
+                            <div class="col-xs-offset-0 form-group" ng-if="policy.backupStorage.storageKind == 'FileShare'">
                                 <input type="text" class="form-control" placeholder="secondaryPassword" ng-model="policy.backupStorage.secondaryPassword" />
                             </div>
                         </form>
