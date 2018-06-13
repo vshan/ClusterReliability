@@ -22,9 +22,9 @@
             <tr ng-repeat="partitionStatus in applicationStatus">
                 <td>{{partitionStatus.applicationName}}</td>
                 <td>{{partitionStatus.serviceName}}</td>
-                <td>{{partitionStatus.primaryCluster}}</td>
+                <td>{{partitionStatus.primaryCluster.address}}</td>
                 <td>{{partitionStatus.primaryPartitionId}}</td>
-                <td>{{partitionStatus.secondaryCluster}}</td>
+                <td>{{partitionStatus.secondaryCluster.address}}</td>
                 <td>{{partitionStatus.partitionId}}</td>
                 <td>{{partitionStatus.lastBackupRestored.backupTime}}({{partitionStatus.lastBackupRestored.backupId}})</td>
                 <td>{{partitionStatus.currentlyUnderRestore.backupTime}}({{partitionStatus.currentlyUnderRestore.backupId}})</td>
@@ -34,7 +34,7 @@
     </table>
     <br /> <br />
            <div class="modal-footer">
-               <button class="btn btn-primary" type="button" ng-click="disconfigure(configuredApp)">Disconfigure</button>
-               <button class="btn btn-warning" type="button" ng-click="cancel('statusModalInstance')">Cancel</button>
+               <button class="btn btn-warning" type="button" ng-click="disconfigure(configuredApp)">Disconfigure</button>
+               <button class="btn btn-danger" type="button" ng-click="cancel('statusModalInstance')">Cancel</button>
            </div>
 </div>

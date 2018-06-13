@@ -24,9 +24,9 @@
                 <tr ng-repeat="partitionStatus in partitionsStatus">
                     <td>{{partitionStatus.applicationName}}</td>
                     <td>{{partitionStatus.serviceName}}</td>
-                    <td>{{partitionStatus.primaryCluster}}</td>
+                    <td>{{partitionStatus.primaryCluster.address}}</td>
                     <td>{{partitionStatus.primaryPartitionId}}</td>
-                    <td>{{partitionStatus.secondaryCluster}}</td>
+                    <td>{{partitionStatus.secondaryCluster.address}}</td>
                     <td>{{partitionStatus.partitionId}}</td>
                     <td>{{partitionStatus.lastBackupRestored.backupTime}}({{partitionStatus.lastBackupRestored.backupId}})</td>
                     <td>{{partitionStatus.currentlyUnderRestore.backupTime}}({{partitionStatus.currentlyUnderRestore.backupId}})</td>

@@ -185,12 +185,18 @@ app.controller('CBAController', ['$rootScope', '$scope', '$http', '$timeout', '$
         $rootScope.sc = $scope.sc;
         $rootScope.php = $scope.php;
         $rootScope.shp = $scope.shp;
-        var address = $scope.pc;
-        if (address.includes("http://"))
-            address = address.replace("http://", "");
-        if (address.includes("https://"))
-            address = address.replace("https://", "");
-        $scope.pc = $rootScope.pc = address;
+        var primaryAddress = $scope.pc;
+        if (primaryAddress.includes("http://"))
+            primaryAddress = primaryAddress.replace("http://", "");
+        if (primaryAddress.includes("https://"))
+            primaryAddress = primaryAddress.replace("https://", "");
+        $scope.pc = $rootScope.pc = primaryAddress;
+        var secondaryAddress = $scope.sc;
+        if (secondaryAddress.includes("http://"))
+            secondaryAddress = secondaryAddress.replace("http://", "");
+        if (secondaryAddress.includes("https://"))
+            secondaryAddress = secondaryAddress.replace("https://", "");
+        $scope.sc = $rootScope.sc = secondaryAddress;
         $http.get('api/RestoreService/' + $scope.pc + '/' + $scope.php)
             .then(function (data, status) {
                 $scope.apps = data;
@@ -204,6 +210,7 @@ app.controller('CBAController', ['$rootScope', '$scope', '$http', '$timeout', '$
                 console.log($scope.apps.data[0]);
             }, function (data, status) {
                 $scope.apps = undefined;
+                window.alert('Please check the cluster details and try again');
             });
     };
 
