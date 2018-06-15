@@ -1,9 +1,10 @@
-# StandByApplication
 ---
 services: service-fabric
 platforms: dotnet
 author: t-arsaic
 ---
+
+# StandByApplication
 The stand-by application makes the application in secondary cluster data ready by periodically restoring latest backups available from primary cluster.
 
 ##Components
