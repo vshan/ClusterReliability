@@ -9,7 +9,7 @@ using Microsoft.ServiceFabric.Services.Runtime;
 
 namespace RestoreService
 {
-    [EventSource(Name = "MyCompany-CBA-RestoreService")]
+    [EventSource(Name = "MyCompany-StandByApplication-RestoreService")]
     internal sealed class ServiceEventSource : EventSource
     {
         public static readonly ServiceEventSource Current = new ServiceEventSource();

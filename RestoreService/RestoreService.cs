@@ -275,7 +275,7 @@ namespace RestoreService
         public async Task Configure(List<string> applications, List<PolicyStorageEntity> policyDeatils, ClusterDetails primaryCluster, ClusterDetails secondaryCluster)
         {
             IReliableDictionary<Guid, PartitionWrapper> myDictionary = await this.StateManager.GetOrAddAsync<IReliableDictionary<Guid, PartitionWrapper>>("partitionDictionary");
-            IPolicyStorageService policyStorageClient = ServiceProxy.Create<IPolicyStorageService>(new Uri("fabric:/CBA/PolicyStorageService"));
+            IPolicyStorageService policyStorageClient = ServiceProxy.Create<IPolicyStorageService>(new Uri("fabric:/StandByApplication/PolicyStorageService"));
             bool stored = await policyStorageClient.PostStorageDetails(policyDeatils, primaryCluster.address + ':' + primaryCluster.httpEndpoint);
             foreach(string application in applications)
             {
@@ -589,7 +589,7 @@ namespace RestoreService
 
         public async Task<BackupStorage> GetBackupStorageDetails(string policy)
         {
-            IPolicyStorageService policyStorageClient = ServiceProxy.Create<IPolicyStorageService>(new Uri("fabric:/CBA/PolicyStorageService"));
+            IPolicyStorageService policyStorageClient = ServiceProxy.Create<IPolicyStorageService>(new Uri("fabric:/StandByApplication/PolicyStorageService"));
             BackupStorage backupStorage = await policyStorageClient.GetPolicyStorageDetails(policy);
             return backupStorage;
         }

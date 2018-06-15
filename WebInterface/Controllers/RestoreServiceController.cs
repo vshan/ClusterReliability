@@ -128,7 +128,7 @@ namespace WebInterface.Controllers
         [Route("add/{policyName}/{pccs}")]
         public bool Post([FromBody]BackupStorage backupStorage, string policyName, string pccs)
         {
-            IPolicyStorageService policyStorageServiceClient = ServiceProxy.Create<IPolicyStorageService>(new Uri("fabric:/CBA/PolicyStorageService"));
+            IPolicyStorageService policyStorageServiceClient = ServiceProxy.Create<IPolicyStorageService>(new Uri("fabric:/StandByApplication/PolicyStorageService"));
             try
             {
                return policyStorageServiceClient.PostStorageDetails(null, pccs).Result;
@@ -154,12 +154,12 @@ namespace WebInterface.Controllers
             List<PolicyStorageEntity> policicesList = JsonConvert.DeserializeObject<List<PolicyStorageEntity>>(policiesData.ToString());
             // BackupStorage backupStorage = JsonConvert.DeserializeObject<BackupStorage>(new JavaScriptSerializer().Serialize(value));
             FabricClient fabricClient = new FabricClient();
-            ServicePartitionList partitionList = fabricClient.QueryManager.GetPartitionListAsync(new Uri("fabric:/CBA/RestoreService")).Result;
+            ServicePartitionList partitionList = fabricClient.QueryManager.GetPartitionListAsync(new Uri("fabric:/StandByApplication/RestoreService")).Result;
             foreach(Partition partition in partitionList)
             {
                 var int64PartitionInfo = partition.PartitionInformation as Int64RangePartitionInformation;
                 long lowKey = (long)int64PartitionInfo?.LowKey;
-                IRestoreService restoreServiceClient = ServiceProxy.Create<IRestoreService>(new Uri("fabric:/CBA/RestoreService"), new ServicePartitionKey(lowKey));
+                IRestoreService restoreServiceClient = ServiceProxy.Create<IRestoreService>(new Uri("fabric:/StandByApplication/RestoreService"), new ServicePartitionKey(lowKey));
                 try
                 {
                     restoreServiceClient.Configure(applicationsList, policicesList, primaryCluster, secondaryCluster);
@@ -178,12 +178,12 @@ namespace WebInterface.Controllers
         {
             bool successfullyRemoved = true;
             FabricClient fabricClient = new FabricClient();
-            ServicePartitionList partitionList = fabricClient.QueryManager.GetPartitionListAsync(new Uri("fabric:/CBA/RestoreService")).Result;
+            ServicePartitionList partitionList = fabricClient.QueryManager.GetPartitionListAsync(new Uri("fabric:/StandByApplication/RestoreService")).Result;
             foreach (Partition partition in partitionList)
             {
                 var int64PartitionInfo = partition.PartitionInformation as Int64RangePartitionInformation;
                 long lowKey = (long)int64PartitionInfo?.LowKey;
-                IRestoreService restoreServiceClient = ServiceProxy.Create<IRestoreService>(new Uri("fabric:/CBA/RestoreService"), new ServicePartitionKey(lowKey));
+                IRestoreService restoreServiceClient = ServiceProxy.Create<IRestoreService>(new Uri("fabric:/StandByApplication/RestoreService"), new ServicePartitionKey(lowKey));
                 try
                 {
                     string applicationRemoved = await restoreServiceClient.Disconfigure("fabric:/" + applicationName);
@@ -204,7 +204,7 @@ namespace WebInterface.Controllers
         public async Task<IEnumerable<PartitionWrapper>> GetPartitionStatus()
         {
             FabricClient fabricClient = new FabricClient();
-            ServicePartitionList partitionList = fabricClient.QueryManager.GetPartitionListAsync(new Uri("fabric:/CBA/RestoreService")).Result;
+            ServicePartitionList partitionList = fabricClient.QueryManager.GetPartitionListAsync(new Uri("fabric:/StandByApplication/RestoreService")).Result;
             List<PartitionStatusModel> partitionStatusList = new List<PartitionStatusModel>();
             List<PartitionWrapper> mappedPartitions = new List<PartitionWrapper>();
             foreach (Partition partition in partitionList)
@@ -212,7 +212,7 @@ namespace WebInterface.Controllers
                 List<PartitionWrapper> servicePartitions = new List<PartitionWrapper>();
                 var int64PartitionInfo = partition.PartitionInformation as Int64RangePartitionInformation;
                 long lowKey = (long)int64PartitionInfo?.LowKey;
-                IRestoreService restoreServiceClient = ServiceProxy.Create<IRestoreService>(new Uri("fabric:/CBA/RestoreService"), new ServicePartitionKey(lowKey));
+                IRestoreService restoreServiceClient = ServiceProxy.Create<IRestoreService>(new Uri("fabric:/StandByApplication/RestoreService"), new ServicePartitionKey(lowKey));
                 try
                 {
                     servicePartitions = await restoreServiceClient.GetStatus();

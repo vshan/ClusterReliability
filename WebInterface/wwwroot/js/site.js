@@ -1,5 +1,5 @@
 ﻿// Write your JavaScript code.
-var app = angular.module('CBA', ['ngRoute','ui.bootstrap']);
+var app = angular.module('StandByApplication', ['ngRoute','ui.bootstrap']);
 app.run(function ($rootScope, $location) {
     $rootScope.$on("$locationChangeStart", function (event, next, current) {
 
@@ -19,18 +19,18 @@ app.config(function ($routeProvider) {
 
         .when('/', {
             templateUrl: 'Status',
-            controller: 'CBAController'
+            controller: 'StandByApplicationController'
         })
 
         .when('/Configure', {
             templateUrl: 'Applications',
-            controller: 'CBAController'
+            controller: 'StandByApplicationController'
         })
 
         .otherwise({ redirectTo: '/' });
 });
 
-app.controller('CBAController', ['$rootScope', '$scope', '$http', '$timeout', '$location','$uibModal', function ($rootScope, $scope, $http, $timeout, $location, $uibModal) {
+app.controller('StandByApplicationController', ['$rootScope', '$scope', '$http', '$timeout', '$location','$uibModal', function ($rootScope, $scope, $http, $timeout, $location, $uibModal) {
 
     $scope.showForm = false;
     $scope.policy = {};

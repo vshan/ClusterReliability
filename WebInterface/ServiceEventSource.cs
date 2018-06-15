@@ -9,7 +9,7 @@ using Microsoft.ServiceFabric.Services.Runtime;
 
 namespace WebInterface
 {
-    [EventSource(Name = "MyCompany-CBA-WebInterface")]
+    [EventSource(Name = "MyCompany-StandByApplication-WebInterface")]
     internal sealed class ServiceEventSource : EventSource
     {
         public static readonly ServiceEventSource Current = new ServiceEventSource();
