@@ -53,6 +53,12 @@ namespace PolicyStorageService
             
         }
 
+        /// <summary>
+        /// This is called by Restore Service to and it stores the storage details along with the policy details in the reliable dictionary
+        /// </summary>
+        /// <param name="policies"></param>
+        /// <param name="primaryClusterConnectionString"></param>
+        /// <returns></returns>
         public async Task<bool> PostStorageDetails(List<PolicyStorageEntity> policies, string primaryClusterConnectionString)
         {
             IReliableDictionary<string, BackupStorage> myDictionary = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, BackupStorage>>("storageDictionary");
@@ -86,6 +92,11 @@ namespace PolicyStorageService
             return true;
         }
 
+        /// <summary>
+        /// This returns the storage details for the policy specified
+        /// </summary>
+        /// <param name="policy"></param>
+        /// <returns></returns>
         public async Task<BackupStorage> GetPolicyStorageDetails(String policy)
         {
             IReliableDictionary<string, BackupStorage> myDictionary = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, BackupStorage>>("storageDictionary");
@@ -113,11 +124,9 @@ namespace PolicyStorageService
             client.DefaultRequestHeaders.Accept.Add(
             new MediaTypeWithQualityHeaderValue("application/json"));
 
-            // List data response.
-            HttpResponseMessage response = await client.GetAsync(urlParameters);  // Blocking call!
+            HttpResponseMessage response = await client.GetAsync(urlParameters);
             if (response.IsSuccessStatusCode)
             {
-                // Parse the response body. Blocking!
                 var content = response.Content.ReadAsAsync<JObject>().Result;
                 JObject objectData = (JObject)content["Storage"];
                 BackupStorage backupStorage = JsonConvert.DeserializeObject<BackupStorage>(objectData.ToString());

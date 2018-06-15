@@ -24,33 +24,28 @@ namespace WebInterface.Controllers
     [Route("api/[controller]")]
     public class RestoreServiceController : Controller
     {
-        // GET: api/Restore
-        [HttpGet]
-        public IEnumerable<string> Get()
-        {
-            return new string[] { "value1", "value2" };
-        }
 
-        // GET: api/Restore/5
+        // Returns the applications deployed in primary cluster
+        // GET: api/RestoreService/{primaryCluster}/{httpendpoint}
         [HttpGet("{pc}/{hp}", Name = "Get")]
         public async Task<IActionResult> Get(String pc, String hp)
         {
-            FabricClient fabricClient = new FabricClient(pc + ":" + GetClientConnectionEndpoint(pc + ":" + hp));
             List<String> applicationsList = new List<String>();
+            FabricClient fabricClient = new FabricClient(pc + ":" + GetClientConnectionEndpoint(pc + ":" + hp));
+
             FabricClient.QueryClient queryClient = fabricClient.QueryManager;
-            System.Fabric.Query.ApplicationList appsList = await queryClient.GetApplicationListAsync();
-            foreach (System.Fabric.Query.Application application in appsList)
+            ApplicationList appsList = await queryClient.GetApplicationListAsync();
+
+            foreach (Application application in appsList)
             {
-                ///ServiceEventSource.Current.ServiceMessage(this.Context, "Application is " + application.ApplicationName);
                 string applicationName = application.ApplicationName.ToString();
-                applicationName = applicationName.Replace("fabric:/", "");
                 applicationsList.Add(applicationName);
-                //await GetPartitionsOfApplication(application.ApplicationName, clusterConnectionString, clusterConnectionString);
             }
             return this.Json(applicationsList);
 
         }
 
+        // Gets the policies associated with the chosen applications
         [Route("policies/{cs}")]
         [HttpPost]
         public async Task<IActionResult> GetPolicies(String cs, [FromBody]List<string> applications)
@@ -68,11 +63,9 @@ namespace WebInterface.Controllers
                 client.DefaultRequestHeaders.Accept.Add(
                 new MediaTypeWithQualityHeaderValue("application/json"));
 
-                // List data response.
-                HttpResponseMessage response = await client.GetAsync(urlParameters);  // Blocking call!
+                HttpResponseMessage response = await client.GetAsync(urlParameters);
                 if (response.IsSuccessStatusCode)
                 {
-                    // Parse the response body. Blocking!
                     var content = response.Content.ReadAsAsync<JObject>().Result;
                     JArray array = (JArray)content["Items"];
                     foreach (var item in array)
@@ -123,38 +116,27 @@ namespace WebInterface.Controllers
             
         }
 
-        // POST: api/Restore
-        [HttpPost]
-        [Route("add/{policyName}/{pccs}")]
-        public bool Post([FromBody]BackupStorage backupStorage, string policyName, string pccs)
-        {
-            IPolicyStorageService policyStorageServiceClient = ServiceProxy.Create<IPolicyStorageService>(new Uri("fabric:/StandByApplication/PolicyStorageService"));
-            try
-            {
-               return policyStorageServiceClient.PostStorageDetails(null, pccs).Result;
-            }
-            catch (Exception ex)
-            {
-                ServiceEventSource.Current.Message("Web Service: Exception posting storage details {0} : {1}", policyName,ex);
-                throw;
-            }
-        }
 
+        // Calls configure method of restore service
         [HttpPost]
         [Route("configure/{primaryClusterAddress}/{secondaryClusterAddress}/{primaryHttpEndpoint}/{secondaryHttpEndpoint}")]
         public void Configure([FromBody]JObject content, string primaryClusterAddress,string secondaryClusterAddress, string primaryHttpEndpoint, string secondaryHttpEndpoint)
         {
             string primaryClientConnectionEndpoint = GetClientConnectionEndpoint(primaryClusterAddress + ":" + primaryHttpEndpoint);
             string secondaryClientConnectionEndpoint = GetClientConnectionEndpoint(secondaryClusterAddress + ":" + secondaryHttpEndpoint);
+
             ClusterDetails primaryCluster = new ClusterDetails(primaryClusterAddress, primaryHttpEndpoint, primaryClientConnectionEndpoint);
             ClusterDetails secondaryCluster = new ClusterDetails(secondaryClusterAddress, secondaryHttpEndpoint, secondaryClientConnectionEndpoint);
+
             JArray applicationsData = (JArray)content["ApplicationsList"];
             JArray policiesData = (JArray)content["PoliciesList"];
+
             List<string> applicationsList = JsonConvert.DeserializeObject<List<string>>(applicationsData.ToString());
             List<PolicyStorageEntity> policicesList = JsonConvert.DeserializeObject<List<PolicyStorageEntity>>(policiesData.ToString());
-            // BackupStorage backupStorage = JsonConvert.DeserializeObject<BackupStorage>(new JavaScriptSerializer().Serialize(value));
+
             FabricClient fabricClient = new FabricClient();
             ServicePartitionList partitionList = fabricClient.QueryManager.GetPartitionListAsync(new Uri("fabric:/StandByApplication/RestoreService")).Result;
+
             foreach(Partition partition in partitionList)
             {
                 var int64PartitionInfo = partition.PartitionInformation as Int64RangePartitionInformation;
@@ -172,6 +154,12 @@ namespace WebInterface.Controllers
             }
         }
 
+
+        /// <summary>
+        /// Disconfigures the application for standby by calling disconfigure of the restore service method
+        /// </summary>
+        /// <param name="applicationName"></param>
+        /// <returns></returns>
         [HttpGet]
         [Route("disconfigure/{applicationName}")]
         public async Task<string> Disconfigure(string applicationName)
@@ -199,14 +187,21 @@ namespace WebInterface.Controllers
             return null;
         }
 
+
+        /// <summary>
+        /// This calls GetStatus method of restore service.
+        /// </summary>
+        /// <returns></returns>
         [HttpGet]
         [Route("status")]
         public async Task<IEnumerable<PartitionWrapper>> GetPartitionStatus()
         {
             FabricClient fabricClient = new FabricClient();
             ServicePartitionList partitionList = fabricClient.QueryManager.GetPartitionListAsync(new Uri("fabric:/StandByApplication/RestoreService")).Result;
+
             List<PartitionStatusModel> partitionStatusList = new List<PartitionStatusModel>();
             List<PartitionWrapper> mappedPartitions = new List<PartitionWrapper>();
+
             foreach (Partition partition in partitionList)
             {
                 List<PartitionWrapper> servicePartitions = new List<PartitionWrapper>();
@@ -225,15 +220,8 @@ namespace WebInterface.Controllers
                 }
             }
 
-            //            if (partitionStatusList.Count == 0) return null;
             if (mappedPartitions.Count == 0) return null;
             return mappedPartitions;
-            /*var response = JsonConvert.SerializeObject(new
-            {
-                partitionStatusList
-            });
-            return response;*/
-
         }
 
         public string GetClientConnectionEndpoint(string clusterConnectionString)
@@ -260,18 +248,6 @@ namespace WebInterface.Controllers
                 Console.WriteLine("{0} ({1})", (int)response.StatusCode, response.ReasonPhrase);
                 return null;
             }
-        }
-
-        // PUT: api/Restore/5
-        [HttpPut("{id}")]
-        public void Put(int id, [FromBody]string value)
-        {
-        }
-        
-        // DELETE: api/ApiWithActions/5
-        [HttpDelete("{id}")]
-        public void Delete(int id)
-        {
         }
     }
 

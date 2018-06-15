@@ -6,6 +6,9 @@ using System.Threading.Tasks;
 
 namespace PolicyStorageService
 {
+    /// <summary>
+    /// This class encapsulates backupstorage info and policy
+    /// </summary>
     public class PolicyStorageEntity
     {
         public string policy { get; set; }
