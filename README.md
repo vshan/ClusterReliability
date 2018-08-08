@@ -6,7 +6,7 @@ platforms: dotnet
 # Cluster Reliability
 The cluster reliability application makes the application in secondary cluster data ready by periodically restoring latest backups available from primary cluster.
 
-##Components
+## Components
 This application has 3 components :
  - WebInterface( stateless frontend service)
  - Restore Service (statefu) : Stores partition mappings and triggers restore periodically
