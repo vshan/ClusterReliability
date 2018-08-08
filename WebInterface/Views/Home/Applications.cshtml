@@ -2,54 +2,53 @@
 @{
     ViewData["Title"] = "Applications";
 }
-<div ng-controller="StandByApplicationController" ng-init= "refresh()">
-    <div class="container-fluid">
-        <div class="row">
-            <div class="col-xs-8 col-xs-offset-2 text-center">
-                <h2>Stanby Cluster Configuration Application</h2>
-            </div>
-        </div>
-        <div class="row">
-            <div class="col-xs-8 col-xs-offset-2">
-                <form class="col-xs-12 center-block">
-                    <div class="col-xs-6 form-group">
-                        <input id="txtAdd" type="text" class="form-control" placeholder="Primary Cluster" value="localhost" ng-model="pc" />
+<div ng-controller="SFAppDRToolController" ng-init= "refresh()">
+    <div class="container" style="margin-top: 20px;">
+
+        <h1 class="text-center">SF App Disaster Recovery Tool</h1>
+
+        <form>
+            <div style="margin-top: 15px;">
+                <div style="width: 45%; float: left; margin-right: 30px;">
+                    <h2>Primary Cluster</h2>
+                    <div class="form-group">
+                        <label>Primary Cluster endpoint</label>
+                        <input type="text" placeholder="localhost" ng-model="primaryClusterEndpoint" />
+                        <small class="text-muted">To connect to the primary cluster</small>
                     </div>
-                    <div class="col-xs-6 form-group">
-                        <input id="txtAdd" type="text" class="form-control" placeholder="Primary HttpEndpoint" value="19080" ng-model="php" />
+                    <div class="form-group">
+                        <label>Secure Thumbprint</label>
+                        <input type="text" placeholder="012345678901234567890123456789" ng-model="primSecureThumbp" />
                     </div>
-                    <div class="col-xs-6 form-group">
-                        <input id="txtAdd" type="text" class="form-control" placeholder="Secondary Cluster" value="localhost" ng-model="sc" />
+                    <div class="form-group">
+                        <label>Common Name</label>
+                        <input type="text" placeholder="westus.cloudapp.azure.com" ng-model="primaryCommonName" />
                     </div>
-                    <div class="col-xs-6 form-group">
-                        <input id="txtAdd" type="text" class="form-control" placeholder="SecondaryEndpoint" value="19000" ng-model="shp" />
+                </div>
+                <div style="width: 45%; float: left;">
+                    <h2>Secondary Cluster</h2>
+                    <div class="form-group">
+                        <label>Secondary Cluster endpoint</label>
+                        <input type="text" placeholder="localhost" ng-model="secondaryClusterEndpoint" />
+                        <small class="text-muted">To connect to the secondary cluster</small>
                     </div>
-                </form>
-                <div class="col-xs-offset-0 text-center">
-                    <button id="btnAdd" class="btn btn-primary" ng-click="getapps(pc,php)">
-                        Submit
-                    </button>
+                    <div class="form-group">
+                        <label>Secure Thumbprint</label>
+                        <input type="text" placeholder="012345678901234567890123456789" ng-model="secSecureThumbp" />
+                    </div>
+                    <div class="form-group">
+                        <label>Common Name</label>
+                        <input type="text" placeholder="westus.cloudapp.azure.com" ng-model="primaryCommonName" />
+                    </div>
                 </div>
             </div>
-        </div>
-        <hr />
-        <div class="row" ng-show="!showConfiguredApps">
-            <div class="col-xs-8 col-xs-offset-2 text-center">
-                <h3>No Applications configured</h3>
+            <div style="clear: both; display: block"></div>
+            <div class="form-group">
+                <button ng-click="getAppsOnPrimaryCluster()" class="button success">Next</button>
             </div>
-        </div>
-        <div class="row" ng-show=showConfiguredApps>
-            <div class="col-xs-8 col-xs-offset-2 text-center">
-                <h3>Applications configured for Backup</h3>
-            </div>
-        </div>
-        <div class="col-xs-offset-0 text-center" ng-repeat="appConfigured in appsConfigured">
-            <button class="btn btn-success btn-default" ng-click="openStatusModal(appConfigured)">
-                <span class="center-block">
-                    {{appConfigured}}
-                </span>
-            </button>
-        </div>
+            <!-- <button ng-click="getAppsOnPrimaryCluster()" class="button success">Get Apps</button> -->
+        </form>
+
     </div>
 </div>
 

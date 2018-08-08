@@ -9,7 +9,7 @@ using Microsoft.ServiceFabric.Services.Runtime;
 
 namespace PolicyStorageService
 {
-    [EventSource(Name = "MyCompany-StandByApplication-PolicyStorageService")]
+    [EventSource(Name = "MyCompany-SFAppDRTool-PolicyStorageService")]
     internal sealed class ServiceEventSource : EventSource
     {
         public static readonly ServiceEventSource Current = new ServiceEventSource();

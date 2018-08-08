@@ -1,5 +1,10 @@
 ﻿// Write your JavaScript code.
-var app = angular.module('StandByApplication', ['ngRoute', 'ui.bootstrap']);
+var app = angular.module('SFAppDRTool', ['ngRoute', 'ui.bootstrap']);
+
+runToast = function (text, displayClass) {
+    var toast = Metro.toast.create;
+    toast(text, null, 5000, displayClass);
+}
 
 app.run(function ($rootScope, $location) {
     $rootScope.selectedApps = [];
@@ -11,18 +16,24 @@ app.config(function ($routeProvider) {
 
         .when('/', {
             templateUrl: 'Status',
-            controller: 'StandByApplicationController'
+            controller: 'SFAppDRToolController'
         })
 
         .when('/Configure', {
             templateUrl: 'Applications',
-            controller: 'StandByApplicationController'
+            controller: 'SFAppDRToolController'
         })
+
+        .when('/servConfig', {
+            templateUrl: 'ServiceConfigureModal',
+            controller: 'SFAppDRToolController'
+        })
+
 
         .otherwise({ redirectTo: '/' });
 });
 
-app.controller('StandByApplicationController', ['$rootScope', '$scope', '$http', '$timeout', '$location','$uibModal', function ($rootScope, $scope, $http, $timeout, $location, $uibModal) {
+app.controller('SFAppDRToolController', ['$rootScope', '$scope', '$http', '$timeout', '$location','$uibModal', function ($rootScope, $scope, $http, $timeout, $location, $uibModal) {
 
     var loadTime = 10000, //Load the data every second
         errorCount = 0, //Counter for the server errors
@@ -38,6 +49,9 @@ app.controller('StandByApplicationController', ['$rootScope', '$scope', '$http',
                     $rootScope.showConfiguredApps = false;
                     return;
                 }
+
+                console.log("Calling from status function");
+                console.log($rootScope.partitionsStatus);
 
                 var appsConfigured = [];
 
@@ -94,6 +108,73 @@ app.controller('StandByApplicationController', ['$rootScope', '$scope', '$http',
             });
         $scope.cancel(true);
     };
+
+    $scope.configureApplication = function () {
+
+        var applicationName = $rootScope.currentAppname;
+        console.log("Calling from configure application");
+        console.log(applicationName);
+
+        var contentData = {};
+        contentData.PoliciesList = $scope.apppolicies;
+        // TODO validate policies and update the configured services in UI by making them green
+        contentData.ApplicationList = [applicationName]; // Make sure this fabric:/applicationName
+
+        console.log("Calling from configureApplication");
+        console.log(contentData);
+        var content = JSON.stringify(contentData);
+
+        $http.post('api/RestoreService/configureapp/' + $rootScope.primaryClusterEndpoint + '/' + $rootScope.primaryClusterThumbprint + '/' + $rootScope.secondaryClusterEndpoint + '/' + $rootScope.secondaryClusterThumbprint, content)
+            .then(function (data, status) {
+                console.log("Calling success function");
+                console.log($scope.appsData);
+                for (var i = 0; i < $scope.appsData[applicationName].length; i++) {
+                    if ($scope.appsData[applicationName][i][1] == "NotConfigured") {
+                        $scope.appsData[applicationName][i][1] = "Configured";
+                    }
+                }
+                runToast("Applications successfully configured", "success");
+            }, function (data, status) {
+                runToast("Applications not configured. Try again", "alert");
+            });
+    }
+
+
+    $scope.configureService = function () {
+
+        var serviceName = $rootScope.currentServicename;
+        console.log("Calling from configure service");
+        console.log(serviceName);
+
+        var names = serviceName.split('/');
+        names.pop();
+        var appName = names.join('/');
+        console.log("App name is " + appName);
+        $rootScope.appNameServ = appName;
+
+        var contentData = {};
+        contentData.PoliciesList = $scope.policies;
+        // TODO validate policies and update the configured services in UI by making them green
+        contentData.ServiceList = [appName, serviceName]; // Make sure this fabric:/applicationName/serviceName
+
+        console.log("Calling from configureApplication");
+        console.log(contentData);
+        var content = JSON.stringify(contentData);
+
+        $http.post('api/RestoreService/configureservice/' + $rootScope.primaryClusterEndpoint + '/' + $rootScope.primaryClusterThumbprint + '/' + $rootScope.secondaryClusterEndpoint + '/' + $rootScope.secondaryClusterThumbprint, content)
+            .then(function (data, status) {
+                for (var i = 0; i < $scope.appsData[$rootScope.appNameServ].length; i++) {
+                    if ($scope.appsData[$rootScope.appNameServ][i][0] == $rootScope.currentServicename) {
+                        $scope.appsData[$rootScope.appNameServ][i][1] = "Configured";
+                    }
+                }
+                runToast("Service successfully configured.", "success");
+            }, function (data, status) {
+                runToast("Service not configured. Please try again.", "alert");
+            });
+    }
+
+    
 
     $scope.cancel = function (modalInstance) {
         if (modalInstance === 'configureModalInstance')
@@ -212,4 +293,137 @@ app.controller('StandByApplicationController', ['$rootScope', '$scope', '$http',
                 $scope.policies = undefined;
             });
     };
+
+    $scope.openServicePolicyModal = function (serviceName) {
+        $rootScope.currentServicename = serviceName;
+        serviceN = serviceName.replace("fabric:/", "");
+        serviceN = serviceN.replace("/", "_");
+        console.log("The service name is " + serviceN);
+        clusterEndp = $rootScope.primaryClusterEndpoint.replace(":19000", ":19080");
+        console.log("The cluster name is " + clusterEndp);
+        Metro.dialog.open('#policyConfigModal');
+        $rootScope.serviceConfigLoad = true;
+        $rootScope.serviceNoPolicyFoundFlag = false;
+        $scope.policies = undefined;
+        $http.get('api/RestoreService/servicepolicies/' + clusterEndp + '/' + serviceN)
+            .then(function (data, status) {
+                $scope.policies = data.data;
+                console.log($scope.policies);
+                $rootScope.policies = $scope.policies;
+                $rootScope.serviceConfigLoad = false;
+            }, function (data, status) {
+                $scope.policies = undefined;
+                $rootScope.serviceNoPolicyFoundFlag = true;
+                $rootScope.serviceConfigLoad = false;
+            });
+    }
+
+    $scope.openAppPolicyModal = function (appName) {
+        $rootScope.currentAppname = appName;
+        appNameN = appName.replace("fabric:/", "");
+        clusterEndp = $rootScope.primaryClusterEndpoint.replace(":19000", ":19080");
+        Metro.dialog.open('#appPolicyConfigModal');
+        $rootScope.appConfigLoad = true;
+        $rootScope.appNoPolicyFoundFlag = false;
+        $scope.apppolicies = undefined;
+        $http.get('api/RestoreService/apppolicies/' + clusterEndp + '/' + appNameN)
+            .then(function (data, status) {
+                $scope.apppolicies = data.data;
+                console.log($scope.apppolicies);
+                $rootScope.apppolicies = $scope.apppolicies;
+                $rootScope.appConfigLoad = false;
+            }, function (data, status) {
+                $scope.apppolicies = undefined;
+                $rootScope.appConfigLoad = false;
+                $rootScope.appNoPolicyFoundFlag = true;
+            });
+    }
+
+    $scope.getServiceConfigModal = function () {
+        console.log("getServiceConfigModal was called");
+        $location.path("/servConfig");
+    }
+
+    $scope.gotoindex = function () {
+        $location.path("/");
+    }
+
+    $scope.getAppsOnPrimaryCluster = function () {
+
+        $rootScope.primaryClusterEndpoint = $scope.primaryClusterEndpoint;
+        $rootScope.secondaryClusterEndpoint = $scope.secondaryClusterEndpoint;
+        
+
+        var primaryAddress = $scope.primaryClusterEndpoint;
+
+        if (primaryAddress.includes("http://"))
+            primaryAddress = primaryAddress.replace("http://", "");
+
+        if (primaryAddress.includes("https://"))
+            primaryAddress = primaryAddress.replace("https://", "");
+
+        $scope.primaryClusterEndpoint = $rootScope.primaryClusterEndpoint = primaryAddress;
+
+        var secondaryAddress = $scope.secondaryClusterEndpoint;
+
+        if (secondaryAddress.includes("http://"))
+            secondaryAddress = secondaryAddress.replace("http://", "");
+
+        if (secondaryAddress.includes("https://"))
+            secondaryAddress = secondaryAddress.replace("https://", "");
+
+        $scope.secondaryClusterEndpoint = $rootScope.secondaryClusterEndpoint = secondaryAddress;
+
+
+        $rootScope.primaryClusterThumbprint = $scope.primSecureThumbp;
+        $rootScope.secondaryClusterThumbprint = $scope.secSecureThumbp;
+
+
+        $location.path("/servConfig");
+        $rootScope.splashLoad = true;
+
+        $http.get('api/RestoreService/apps/' + $scope.primaryClusterEndpoint + '/' + $scope.primSecureThumbp + '/' + $scope.secondaryClusterEndpoint + '/' + $scope.secSecureThumbp)
+            .then(function (data, status) {
+                $rootScope.splashLoad = false;
+                $scope.apps = data;
+
+                $scope.appsData = data['data'];
+                $scope.appsKeys = Object.keys($scope.appsData);
+                $rootScope.appsData = $scope.appsData;
+                $rootScope.appsKeys = $scope.appsKeys;
+                console.log($scope.appsData);
+                console.log($scope.appsKeys);
+            }, function (data, status) {
+                $scope.apps = undefined;
+                $rootScope.splashLoad = false;
+                runToast('Please check the cluster details and try again', 'alert');
+            });
+
+    };
+
+    $scope.getAppsSecure = function () {
+        $rootScope.primaryClusterEndpoint = $scope.primaryClusterEndpoint;
+        $rootScope.secondaryClusterEndpoint = $scope.secondaryClusterEndpoint;
+
+        var primaryAddress = $scope.primaryClusterEndpoint;
+
+        if (primaryAddress.includes("http://"))
+            primaryAddress = primaryAddress.replace("http://", "");
+
+        if (primaryAddress.includes("https://"))
+            primaryAddress = primaryAddress.replace("https://", "");
+
+        $scope.primaryClusterEndpoint = $rootScope.primaryClusterEndpoint = primaryAddress;
+
+        $http.get('api/RestoreService/' + $scope.primaryClusterEndpoint + '/' + $scope.primSecureThumbp)
+            .then(function (data, status) {
+                $scope.apps = data;
+                console.log(data);
+            }, function (data, status) {
+                $scope.apps = undefined;
+                window.alert('Please check the cluster details and try again');
+            });
+
+    }
+
 }]);

@@ -14,6 +14,10 @@ namespace RestoreService
     {
         Task Configure(List<String> applications, List<PolicyStorageEntity> policies, ClusterDetails primaryCluster, ClusterDetails secondaryCluster);
 
+        Task ConfigureApplication(string application, List<PolicyStorageEntity> policyDetails, ClusterDetails primaryCluster, ClusterDetails secondaryCluster);
+
+        Task ConfigureService(String applicationName, String serviceName, List<PolicyStorageEntity> policies, ClusterDetails primaryCluster, ClusterDetails secondaryCluster);
+
         Task<string> Disconfigure(string applicationName);
 
         Task<List<PartitionWrapper>> GetStatus();

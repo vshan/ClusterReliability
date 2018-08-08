@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Fabric;
 using System.Linq;
 using System.Net.Http;
+using System.Security.Cryptography.X509Certificates;
+using System.Net.Security;
 using System.Net.Http.Headers;
 using System.Threading;
 using System.Threading.Tasks;
@@ -64,7 +66,15 @@ namespace PolicyStorageService
             IReliableDictionary<string, BackupStorage> myDictionary = await this.StateManager.GetOrAddAsync<IReliableDictionary<string, BackupStorage>>("storageDictionary");
             foreach (var entity in policies)
             {
-                BackupStorage backupStorage = await GetStorageInfo(entity.policy, primaryClusterConnectionString);
+                BackupStorage backupStorage;
+                try
+                {
+                    backupStorage = await GetStorageInfo(entity.policy, primaryClusterConnectionString);
+                }
+                catch (Exception ex) {
+                    ServiceEventSource.Current.Message("Policy Storage Service: Exception getting storage info {0}", ex);
+                    throw;
+                }
                 if (backupStorage != null && entity.backupStorage != null)
                 {
                     backupStorage.connectionString = entity.backupStorage.connectionString;
@@ -117,16 +127,28 @@ namespace PolicyStorageService
 
         public async Task<BackupStorage> GetStorageInfo(string policy, string primaryClusterConnectionString)
         {
-            string URL = "http://" + primaryClusterConnectionString + "/BackupRestore/BackupPolicies/" + policy;
-            string urlParameters = "?api-version=6.2-preview";
-            HttpClient client = new HttpClient();
-            client.BaseAddress = new Uri(URL);
+            string URL = "https://" + primaryClusterConnectionString + "/";
+            string urlParameters = "BackupRestore/BackupPolicies/" + policy + "?api-version=6.2-preview";
+
+
+            X509Certificate2 clientCert = GetClientCertificate();
+            WebRequestHandler requestHandler = new WebRequestHandler();
+            requestHandler.ClientCertificates.Add(clientCert);
+            requestHandler.ServerCertificateValidationCallback = this.MyRemoteCertificateValidationCallback;
+
+
+            HttpClient client = new HttpClient(requestHandler)
+            {
+                BaseAddress = new Uri(URL)
+            };
             client.DefaultRequestHeaders.Accept.Add(
             new MediaTypeWithQualityHeaderValue("application/json"));
 
-            HttpResponseMessage response = await client.GetAsync(urlParameters);
+            // List data response.
+            HttpResponseMessage response = await client.GetAsync(urlParameters);  // Blocking call!
             if (response.IsSuccessStatusCode)
             {
+                // Parse the response body. Blocking!
                 var content = response.Content.ReadAsAsync<JObject>().Result;
                 JObject objectData = (JObject)content["Storage"];
                 BackupStorage backupStorage = JsonConvert.DeserializeObject<BackupStorage>(objectData.ToString());
@@ -137,6 +159,41 @@ namespace PolicyStorageService
                 Console.WriteLine("{0} ({1})", (int)response.StatusCode, response.ReasonPhrase);
                 return null;
             }
-        } 
+        }
+
+        static X509Certificate2 GetClientCertificate()
+        {
+            X509Store userCaStore = new X509Store(StoreName.My, StoreLocation.CurrentUser);
+            try
+            {
+                userCaStore.Open(OpenFlags.ReadOnly);
+                X509Certificate2Collection certificatesInStore = userCaStore.Certificates;
+                X509Certificate2Collection findResult = certificatesInStore.Find(X509FindType.FindByThumbprint, "45E894C34014B198B157F95A57EF98BD7D051194", false);
+                X509Certificate2 clientCertificate = null;
+
+                if (findResult.Count == 1)
+                {
+                    clientCertificate = findResult[0];
+                }
+                else
+                {
+                    throw new Exception("Unable to locate the correct client certificate.");
+                }
+                return clientCertificate;
+            }
+            catch
+            {
+                throw;
+            }
+            finally
+            {
+                userCaStore.Close();
+            }
+        }
+
+        private bool MyRemoteCertificateValidationCallback(object sender, X509Certificate certificate, X509Chain chain, SslPolicyErrors sslPolicyErrors)
+        {
+            return true;
+        }
     }
 }

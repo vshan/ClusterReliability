@@ -88,6 +88,11 @@ namespace WebInterface
                     name: "StatusModal",
                     template: "StatusModal",
                     defaults: new { controller = "Home", action = "StatusModal" });
+
+                routes.MapRoute(
+                    name: "ServiceConfigureModal",
+                    template: "ServiceConfigureModal",
+                    defaults: new { controller = "Home", action = "ServiceConfigureModal" });
             });
         }
     }

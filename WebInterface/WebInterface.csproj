@@ -37,6 +37,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Reference Include="System.Net.Http.WebRequest" />
     <Reference Include="System.Web.Extensions" />
   </ItemGroup>
 

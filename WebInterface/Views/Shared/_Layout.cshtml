@@ -1,5 +1,5 @@
 ﻿<!DOCTYPE html>
-<html ng-app="StandByApplication" xmlns:ng="http://angularjs.org">
+<html ng-app="SFAppDRTool" xmlns:ng="http://angularjs.org">
 <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -8,6 +8,7 @@
     <environment include="Development">
         <link rel="stylesheet" href="~/lib/bootstrap/dist/css/bootstrap.css" />
         <link rel="stylesheet" href="~/css/site.css" />
+        <link rel="stylesheet" href="https://cdn.metroui.org.ua/v4/css/metro-all.min.css">
     </environment>
     <environment exclude="Development">
         <link rel="stylesheet" href="https://ajax.aspnetcdn.com/ajax/bootstrap/3.3.7/css/bootstrap.min.css"
@@ -15,6 +16,7 @@
               asp-fallback-test-class="sr-only" asp-fallback-test-property="position" asp-fallback-test-value="absolute" />
         <link rel="stylesheet" href="~/css/site.min.css" asp-append-version="true" />
         <link rel="stylesheet" href="~/css/site.css" />
+        <link rel="stylesheet" href="https://cdn.metroui.org.ua/v4/css/metro-all.min.css">
     </environment>
 <!--    <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/angularjs/1.6.4/angular.min.js"></script>
     <script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/angularjs/1.6.4/angular-cookies.js"></script>
@@ -22,7 +24,15 @@
 
 </head>
 <body>
-    <div ng-controller="StandByApplicationController">
+    <div ng-controller="SFAppDRToolController">
+
+
+        <ul class="h-menu">
+            <li><a href="#">Cluster Backup Application</a></li>
+            <li><a href="#!/Status">Status</a></li>
+            <li><a href="#!/Configure">Configure</a></li>
+        </ul>
+
         <div class="container-fluid">
             <nav class="navbar navbar-inverse navbar-fixed-top">
                 <div class="container">
@@ -48,11 +58,12 @@
     </div>
 
     <script src="~/lib/jquery/dist/jquery.js"></script>
-    <script src="~/lib/bootstrap/dist/js/bootstrap.js"></script>
+    <!-- <script src="~/lib/bootstrap/dist/js/bootstrap.js"></script> -->
     <script src="~/lib/angular/angular.js"></script>
     <script src="~/lib/angular-bootstrap/ui-bootstrap-tpls.js"></script>
     <script src="~/js/site.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/angular.js/1.4.7/angular.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/angular.js/1.4.7/angular-route.min.js"></script>
+    <script src="https://cdn.metroui.org.ua/v4/js/metro.min.js"></script>
 </body>
 </html>

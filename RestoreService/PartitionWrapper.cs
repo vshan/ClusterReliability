@@ -43,6 +43,9 @@ namespace RestoreService
         [DataMember]
         public BackupInfo CurrentlyUnderRestore { get; set; }
 
+        [DataMember]
+        public String RestoreState { get; set; }
+
         public ServiceKind ServiceKind { get; set; }
 
         public HealthState HealthState { get; set; }
@@ -118,11 +121,22 @@ namespace RestoreService
         [DataMember]
         public string clientConnectionEndpoint { get; set; }
 
+        [DataMember]
+        public string certificateThumbprint { get; set;  }
+
         public ClusterDetails(string address, string httpEndpoint, string clientConnectionEndpoint)
         {
             this.address = address;
             this.httpEndpoint = httpEndpoint;
             this.clientConnectionEndpoint = clientConnectionEndpoint;
+        }
+
+        public ClusterDetails(string address, string httpEndpoint, string clientConnectionEndpoint, string certificateThumbprint)
+        {
+            this.address = address;
+            this.httpEndpoint = httpEndpoint;
+            this.clientConnectionEndpoint = clientConnectionEndpoint;
+            this.certificateThumbprint = certificateThumbprint;
         }
     }
 }
